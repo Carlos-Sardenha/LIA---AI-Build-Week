@@ -15,6 +15,7 @@ Mapa do repositório para agentes. **Não é manual:** aqui só tem o essencial 
 | O que o produto faz e para quem | `docs/product-specs/index.md` |
 | Domínios, camadas e regra de dependência | `ARCHITECTURE.md` |
 | Princípios que não se negociam (privacidade, fonte) | `docs/design-docs/core-beliefs.md` |
+| Roadmap da semana, trilhas e donos | `docs/ROADMAP.md` |
 | O que está sendo feito agora | `docs/exec-plans/active/` |
 | Dívida técnica conhecida | `docs/exec-plans/tech-debt-tracker.md` |
 | Nota de qualidade por domínio | `docs/QUALITY_SCORE.md` |
