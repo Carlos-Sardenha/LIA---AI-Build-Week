@@ -1,0 +1,15 @@
+# Segredos
+.env
+.env.*
+!.env.example
+
+# Dado de saúde real nunca entra no git (só data/sintetico/)
+data/*
+!data/sintetico/
+!data/README.md
+
+# Sistema e editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
