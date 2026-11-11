@@ -1,0 +1,611 @@
+<title>Jarvis Quest</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!--
+  MODELO do Jarvis Quest (skill `checkin`, visão gamificada do Painel do dia).
+  - Mesmos dados (<script id="painel-data">) e mesma gravação do checkin.html: jarvis-escrita → fila do db → copiar.
+  - Gerado por: node System/scripts/painel.mjs montar --tema quest  →  System/checkin/quest.html (git-ignored).
+  - Dados abaixo são FICTÍCIOS (acme, beta, ana-lima). Visual de plataforma 8-bit original: sem personagens nem marcas de terceiros.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: HUD fixo no topo → fase de hoje (linha do tempo como fase de plataforma) → mapa de mundos (projetos) → inimigos (riscos) → blocos (TODO P1–P4) → NPCs (aguardando).
+   Visual único e deliberado (céu de console 8-bit), sem modo escuro. */
+:root {
+  color-scheme: light;
+  --sky: #5c94fc;
+  --sky-2: #7fb0ff;
+  --ink: #0b0b1e;          /* contorno e texto escuro */
+  --panel: #14143a;        /* caixas de diálogo */
+  --panel-2: #22225a;
+  --paper: #fcfcfc;
+  --brick: #c84c0c;
+  --brick-2: #8a2e04;
+  --gold: #fc9838;
+  --gold-2: #f8d878;
+  --pipe: #00a800;
+  --pipe-2: #80d010;
+  --bad: #e40058;
+  --muted: #a8b4f0;
+  --pix: 'Press Start 2P', 'Courier New', monospace;
+  --body: 'Pixelify Sans', 'Trebuchet MS', system-ui, sans-serif;
+  --u: 4px;                /* "pixel" da arte */
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--sky); color: var(--paper); font: 17px/1.35 var(--body); -webkit-font-smoothing: none; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--ink); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 48px; display: grid; gap: 28px; }
+h2 { font: 13px/1.4 var(--pix); margin: 0; letter-spacing: .04em; text-shadow: 2px 2px 0 var(--ink); text-wrap: balance; }
+.sub { color: var(--paper); opacity: .9; font-size: 15px; margin: 0; text-shadow: 1px 1px 0 var(--ink); }
+.sec { display: grid; gap: 12px; }
+.sec-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+button, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px dashed var(--gold-2); outline-offset: 2px; }
+
+/* ── HUD ── */
+.hud { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--ink); border-bottom: var(--u) solid var(--paper); }
+.hud-in { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 10px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px 16px; font: 11px/1.7 var(--pix); }
+.hud-in > div { min-width: 0; }
+.hud b { display: block; font-weight: 400; color: var(--gold-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hud span { font-variant-numeric: tabular-nums; }
+.xpbar { height: 8px; background: var(--panel-2); margin-top: 4px; border: 2px solid var(--paper); }
+.xpbar i { display: block; height: 100%; background: var(--gold); transition: width .4s steps(8); }
+.chip { display: inline-block; font: 9px/1 var(--pix); padding: 4px 6px; border: 2px solid currentColor; }
+@media (max-width: 720px) { .hud-in { grid-template-columns: repeat(3, minmax(0, 1fr)); font-size: 9px; } .hud .opt { display: none; } }
+
+/* ── Caixa de diálogo (padrão de RPG/console) ── */
+.box { background: var(--panel); border: var(--u) solid var(--paper); box-shadow: 0 0 0 var(--u) var(--ink), 6px 6px 0 var(--u) rgba(11,11,30,.45); padding: 14px; min-width: 0; }
+
+/* ── Fase de hoje ── */
+.stage-scroll { overflow-x: auto; border: var(--u) solid var(--ink); }
+.stage { position: relative; min-width: 760px; height: 250px; background: linear-gradient(var(--sky) 0 70%, var(--sky-2) 70% 100%); overflow: hidden; }
+.cloud { position: absolute; width: 64px; height: 20px; background: var(--paper); box-shadow: 12px -10px 0 -2px var(--paper), 32px -6px 0 0 var(--paper); opacity: .95; }
+.ground { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background:
+  linear-gradient(var(--ink) 0 3px, transparent 3px) 0 0/32px 20px,
+  linear-gradient(90deg, var(--ink) 0 3px, transparent 3px) 0 0/32px 40px,
+  linear-gradient(90deg, var(--ink) 0 3px, transparent 3px) 16px 20px/32px 40px,
+  var(--brick); border-top: var(--u) solid var(--ink); }
+.hour { position: absolute; bottom: 8px; font: 9px var(--pix); color: var(--gold-2); transform: translateX(-50%); text-shadow: 1px 1px 0 var(--ink); }
+.pipe { position: absolute; bottom: 40px; display: flex; flex-direction: column; align-items: stretch; }
+.pipe .lip { height: 18px; margin: 0 -6px; background: linear-gradient(90deg, var(--pipe-2) 0 30%, var(--pipe) 30%); border: 3px solid var(--ink); }
+.pipe .body { flex: 1; background: linear-gradient(90deg, var(--pipe-2) 0 30%, var(--pipe) 30%); border: 3px solid var(--ink); border-top: 0; }
+.pipe .lbl { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); font: 600 13px/1.1 var(--body); color: var(--paper); background: var(--ink); padding: 3px 6px; white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.pipe.client .lbl { color: var(--gold-2); }
+.plat { position: absolute; height: 14px; background: var(--gold); border: 3px solid var(--ink); }
+.plat span { position: absolute; top: 16px; left: 0; font: 12px/1.1 var(--body); color: var(--ink); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.qblock { position: absolute; width: 36px; height: 36px; display: grid; place-items: center; background: var(--gold); border: 3px solid var(--ink); box-shadow: inset -4px -4px 0 var(--brick), inset 4px 4px 0 var(--gold-2); font: 14px var(--pix); color: var(--ink); cursor: pointer; padding: 0; animation: bob 1.2s steps(2) infinite; }
+.qblock.used { background: var(--brick-2); box-shadow: inset -4px -4px 0 var(--ink); color: var(--gold-2); animation: none; cursor: default; }
+@keyframes bob { 50% { transform: translateY(-3px); } }
+.hero { position: absolute; bottom: 40px; width: 40px; height: 48px; transform: translateX(-50%); image-rendering: pixelated; transition: left .6s steps(6); }
+.now-tag { position: absolute; bottom: 92px; transform: translateX(-50%); font: 9px var(--pix); background: var(--paper); color: var(--ink); padding: 3px 5px; border: 2px solid var(--ink); white-space: nowrap; }
+.flag { position: absolute; bottom: 40px; width: 4px; height: 150px; background: var(--paper); border: 1px solid var(--ink); }
+.flag::before { content: ""; position: absolute; top: 4px; left: -26px; border: 14px solid transparent; border-right: 22px solid var(--pipe); }
+.flag::after { content: ""; position: absolute; top: -8px; left: -5px; width: 12px; height: 12px; background: var(--pipe-2); border: 2px solid var(--ink); }
+
+.missions { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 760px) { .missions { grid-template-columns: 1fr; } }
+.m-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.m-list li { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.m-ico { width: 36px; height: 36px; display: grid; place-items: center; background: var(--gold); border: 3px solid var(--ink); color: var(--ink); font: 13px var(--pix); }
+.m-ico.done { background: var(--brick-2); color: var(--gold-2); }
+.m-t { min-width: 0; }
+.m-t .tx { overflow-wrap: anywhere; }
+.m-t .mt { font-size: 14px; color: var(--muted); }
+.goal { display: grid; gap: 6px; font: 10px/1.6 var(--pix); }
+.goal .xpbar { height: 14px; }
+.intent { font-size: 18px; margin: 0; overflow-wrap: anywhere; }
+.btn { font: 10px/1 var(--pix); padding: 10px 12px; min-height: 40px; background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); cursor: pointer; }
+.btn:hover { background: var(--gold-2); }
+.btn:active { transform: translate(3px, 3px); box-shadow: none; }
+.btn.go { background: var(--gold); }
+.btn.ghost { background: transparent; color: var(--paper); border-color: var(--paper); box-shadow: 3px 3px 0 var(--ink); }
+
+/* ── Mapa de mundos ── */
+.worlds { display: grid; gap: 14px; }
+.world { display: grid; grid-template-columns: 170px minmax(0, 1fr) 96px; gap: 14px; align-items: center; }
+@media (max-width: 760px) { .world { grid-template-columns: 1fr; } }
+.w-name { font: 10px/1.6 var(--pix); color: var(--gold-2); }
+.w-name small { display: block; font: 15px/1.3 var(--body); color: var(--paper); }
+.track { position: relative; height: 56px; display: flex; align-items: flex-end; gap: 4px; padding: 0 30px 0 6px; background: linear-gradient(transparent 0 calc(100% - 10px), var(--brick) calc(100% - 10px)); border-bottom: 3px solid var(--ink); overflow: hidden; }
+.track .b { flex: 0 0 22px; height: 22px; margin-bottom: 14px; border: 2px solid var(--ink); background: var(--gold); display: grid; place-items: center; font: 8px var(--pix); color: var(--ink); cursor: pointer; padding: 0; }
+.track .b.done { background: var(--brick-2); color: var(--gold-2); cursor: default; }
+.track .b.late { background: var(--bad); color: var(--paper); }
+.track .mini { position: absolute; bottom: 10px; width: 20px; height: 24px; transform: translateX(-50%); image-rendering: pixelated; }
+.castle { position: absolute; right: 2px; bottom: 10px; width: 26px; height: 26px; background: var(--paper); border: 2px solid var(--ink); }
+.castle::before { content: ""; position: absolute; top: -8px; left: -2px; right: -2px; height: 6px; background: repeating-linear-gradient(90deg, var(--paper) 0 6px, transparent 6px 10px); }
+.castle::after { content: ""; position: absolute; bottom: 0; left: 8px; width: 8px; height: 10px; background: var(--ink); }
+.castle.burn { background: var(--bad); }
+.w-due { font: 9px/1.7 var(--pix); text-align: right; }
+.w-due .late { color: #ff8fb8; }
+.empty { font-size: 15px; color: var(--muted); margin: 0; }
+
+/* ── Inimigos ── */
+.enemies { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+.enemy { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; align-items: start; }
+.enemy canvas { width: 40px; height: 40px; image-rendering: pixelated; }
+.enemy .k { font: 9px/1.6 var(--pix); color: #ff8fb8; }
+.enemy .k.warn { color: var(--gold-2); }
+.enemy .tx { overflow-wrap: anywhere; }
+.enemy .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.clear { display: flex; gap: 12px; align-items: center; }
+
+/* ── Blocos (TODO) ── */
+.board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 900px) { .board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .board { grid-template-columns: 1fr; } }
+.col { display: grid; gap: 10px; align-content: start; min-height: 120px; }
+.col.over { outline: 3px dashed var(--gold-2); outline-offset: 2px; }
+.col-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; font: 10px/1.5 var(--pix); }
+.col-h .xp { color: var(--gold-2); }
+.card { background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); padding: 8px 10px; display: grid; gap: 6px; cursor: grab; }
+.card .tx { overflow-wrap: anywhere; font-size: 16px; }
+.card .mt { display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; color: #45457a; }
+.card .mt .late { color: var(--bad); font-weight: 600; }
+.card .row { display: flex; gap: 6px; align-items: center; }
+.card .row select { font: 13px var(--body); border: 2px solid var(--ink); background: var(--paper); color: var(--ink); min-height: 32px; flex: 1; min-width: 0; }
+.hit { font: 9px/1 var(--pix); min-height: 32px; padding: 6px 8px; background: var(--gold); color: var(--ink); border: 2px solid var(--ink); cursor: pointer; white-space: nowrap; }
+.hit:hover { background: var(--gold-2); }
+.card.pend { opacity: .55; }
+.more { font: 9px var(--pix); color: var(--paper); background: none; border: 0; padding: 6px 0; cursor: pointer; text-align: left; text-decoration: underline; }
+
+/* ── NPCs ── */
+.npcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.npc .who { font: 10px/1.6 var(--pix); color: var(--gold-2); }
+.npc ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.npc .cobrar { color: #ff8fb8; font: 8px var(--pix); margin-left: 4px; }
+
+/* ── Feedback ── */
+.pop { position: fixed; z-index: 20; pointer-events: none; font: 12px var(--pix); color: var(--gold-2); text-shadow: 2px 2px 0 var(--ink); animation: up .9s steps(9) forwards; }
+.coin { position: fixed; z-index: 20; width: 16px; height: 22px; background: var(--gold); border: 3px solid var(--ink); border-radius: 50% / 40%; pointer-events: none; animation: coin .6s steps(6) forwards; }
+@keyframes up { to { transform: translateY(-48px); opacity: 0; } }
+@keyframes coin { 50% { transform: translateY(-46px) scaleX(.3); } to { transform: translateY(-30px); opacity: 0; } }
+.banner { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; pointer-events: none; }
+.banner div { font: 22px/1.5 var(--pix); color: var(--gold-2); background: var(--ink); border: var(--u) solid var(--paper); padding: 18px 26px; text-align: center; text-shadow: 3px 3px 0 var(--brick); animation: blink .25s steps(2) 6; }
+.banner small { display: block; font: 18px var(--body); color: var(--paper); text-shadow: none; }
+@keyframes blink { 50% { opacity: .2; } }
+.toasts { position: fixed; z-index: 25; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 8px; max-width: min(380px, calc(100vw - 32px)); }
+.toast { background: var(--ink); border: 3px solid var(--paper); padding: 10px 12px; font-size: 15px; }
+.toast.err { border-color: var(--bad); }
+.foot { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; font-size: 14px; text-shadow: 1px 1px 0 var(--ink); }
+#fallback pre { white-space: pre-wrap; font: 12px/1.4 monospace; background: var(--ink); padding: 8px; max-height: 160px; overflow: auto; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<header class="hud" aria-label="Status do jogador">
+  <div class="hud-in">
+    <div><b>JOGADOR</b><span id="hud-lv">MATEUS LV1</span><div class="xpbar" aria-hidden="true"><i id="hud-xpbar" style="width:0%"></i></div></div>
+    <div><b>XP SEMANA</b><span id="hud-xp">000000</span></div>
+    <div><b>MOEDAS HOJE</b><span id="hud-coins">×00</span></div>
+    <div class="opt"><b>MUNDO</b><span id="hud-world">W00-0</span></div>
+    <div class="opt"><b>TEMPO</b><span id="hud-time">000</span></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="sec" aria-labelledby="t-fase">
+    <div class="sec-h">
+      <h2 id="t-fase">FASE DE HOJE</h2>
+      <p class="sub" id="fase-sub"></p>
+    </div>
+    <div class="stage-scroll"><div class="stage" id="stage" role="img" aria-label="Linha do tempo do dia"></div></div>
+    <div class="missions">
+      <div class="box">
+        <h2 style="margin-bottom:10px">MISSÃO DO DIA</h2>
+        <ul class="m-list" id="missoes"></ul>
+      </div>
+      <div class="box goal">
+        <span>INTENÇÃO</span>
+        <p class="intent" id="intencao"></p>
+        <span id="goal-txt">0/3 MISSÕES</span>
+        <div class="xpbar" aria-hidden="true"><i id="goal-bar" style="width:0%"></i></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
+          <button class="btn ghost" id="b-som" type="button" aria-pressed="false">SOM: OFF</button>
+          <button class="btn ghost" id="b-reload" type="button">RELER VAULT</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="t-mundos">
+    <div class="sec-h">
+      <h2 id="t-mundos">MAPA DE MUNDOS</h2>
+      <p class="sub">Cada projeto é um mundo. Bloco dourado = tarefa aberta · marrom = feita · castelo = prazo.</p>
+    </div>
+    <div class="box worlds" id="mundos"></div>
+  </section>
+
+  <section class="sec" aria-labelledby="t-inimigos">
+    <div class="sec-h">
+      <h2 id="t-inimigos">INIMIGOS À VISTA</h2>
+      <p class="sub">Atrasos e cobranças. Derrote antes que virem chefe.</p>
+    </div>
+    <div class="enemies" id="inimigos"></div>
+  </section>
+
+  <section class="sec" aria-labelledby="t-blocos">
+    <div class="sec-h">
+      <h2 id="t-blocos">BLOCOS</h2>
+      <p class="sub">Arraste entre colunas para mudar a prioridade. GOLPE = concluir e ganhar XP.</p>
+    </div>
+    <div class="board" id="board"></div>
+  </section>
+
+  <section class="sec" aria-labelledby="t-npc">
+    <div class="sec-h">
+      <h2 id="t-npc">NPCs</h2>
+      <p class="sub">Quem está com a bola e o que você deve a quem.</p>
+    </div>
+    <div class="npcs" id="npcs"></div>
+  </section>
+
+  <footer class="foot">
+    <span id="modo">Modo: retrato</span>
+    <span id="gerado"></span>
+  </footer>
+  <div class="box" id="fallback" hidden>
+    <p style="margin:0 0 8px">Sem gravação nesta página. Copie e cole no chat do Claude:</p>
+    <pre id="copy-txt"></pre>
+    <button class="btn" id="b-copy" type="button">COPIAR</button>
+  </div>
+</main>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script id="painel-data" type="application/json">
+{
+  "hoje": "2026-10-21",
+  "diaSemana": "quarta-feira",
+  "geradoEm": "2026-10-21T09:00:00-03:00",
+  "expediente": {"inicio": "09:00", "fim": "16:00"},
+  "proposta": {
+    "intencao": "Fechar a ata da QBR da acme antes do almoço.",
+    "top3Texto": ["Enviar ata da QBR", "Revisar health score da beta", "Preparar pauta do 1:1"],
+    "blocos": [
+      {"inicio": "09:30", "fim": "10:30", "rotulo": "Ata da QBR", "tarefaTexto": "Enviar ata da QBR"},
+      {"inicio": "11:30", "fim": "12:00", "rotulo": "Cobranças / P3"},
+      {"inicio": "13:00", "fim": "14:00", "rotulo": "Health score beta", "tarefaTexto": "Revisar health score da beta"}
+    ],
+    "riscos": ["QBR acme sem Pré-contexto no vault"]
+  },
+  "agenda": [
+    {"data": "2026-10-21", "inicio": "09:00", "fim": "09:15", "titulo": "Daily do time", "tipo": "meet"},
+    {"data": "2026-10-21", "inicio": "10:30", "fim": "11:30", "titulo": "QBR acme", "tipo": "client"},
+    {"data": "2026-10-21", "inicio": "14:00", "fim": "14:30", "titulo": "1:1 ana-lima", "tipo": "meet"},
+    {"data": "2026-10-22", "inicio": "15:00", "fim": "16:00", "titulo": "Kickoff beta", "tipo": "client"}
+  ],
+  "painel": {
+    "todo": [
+      {"id": "a1", "texto": "Enviar ata da QBR", "feito": false, "quadrante": "P1", "campos": {"prazo": "2026-10-21"}, "ctx": "acme"},
+      {"id": "a2", "texto": "Revisar health score da beta", "feito": false, "quadrante": "P1", "campos": {"prazo": "2026-10-22"}, "ctx": "implantacao-beta"},
+      {"id": "a3", "texto": "Preparar pauta do 1:1", "feito": false, "quadrante": "P2", "campos": {}, "ctx": "ana-lima"},
+      {"id": "a4", "texto": "Atualizar planilha de acessos", "feito": false, "quadrante": "P3", "campos": {"prazo": "2026-10-18"}, "ctx": "acme"},
+      {"id": "a6", "texto": "Montar cronograma de treinamento", "feito": false, "quadrante": "P2", "campos": {"prazo": "2026-10-30"}, "ctx": "implantacao-beta"},
+      {"id": "a7", "texto": "Validar carga de fornecedores", "feito": true, "quadrante": "P1", "campos": {"feito": "2026-10-20"}, "ctx": "implantacao-beta"},
+      {"id": "a8", "texto": "Configurar perfis de acesso", "feito": true, "quadrante": "P2", "campos": {"feito": "2026-10-21"}, "ctx": "implantacao-beta"},
+      {"id": "a9", "texto": "Ler artigo sobre health score", "feito": false, "quadrante": "P4", "campos": {}, "ctx": null},
+      {"id": "a10", "texto": "Rascunhar slides da QBR", "feito": true, "quadrante": "P2", "campos": {"feito": "2026-10-19"}, "ctx": "qbr-acme-q4"},
+      {"id": "a11", "texto": "Fechar números de adesão", "feito": false, "quadrante": "P2", "campos": {"prazo": "2026-10-24"}, "ctx": "qbr-acme-q4"},
+      {"id": "a5", "texto": "Base de fornecedores revisada", "feito": false, "quadrante": "AG", "campos": {"quem": "[[ana-lima]]", "cobrar": "2026-10-21", "desde": "2026-10-15"}, "ctx": null}
+    ],
+    "compromissos": [
+      {"id": "2026-10-15-bruno-souza-revisar-perfis", "oque": "Revisar perfis de acesso", "status": "aberto", "prazo": "2026-10-20", "assumido_por": "bruno-souza", "cliente": "acme"},
+      {"id": "2026-10-20-mateus-falcao-enviar-relatorio", "oque": "Enviar relatório de adesão", "status": "aberto", "prazo": "2026-10-23", "assumido_por": "mateus-falcao", "cliente": "beta"}
+    ],
+    "projetos": [
+      {"id": "implantacao-beta", "titulo": "Implantação beta", "status": "ativo", "prazo": "2026-11-10"},
+      {"id": "qbr-acme-q4", "titulo": "QBR acme Q4", "status": "ativo", "prazo": "2026-10-21"}
+    ],
+    "reunioes": [],
+    "pessoas": {"ana-lima": "Ana Lima", "bruno-souza": "Bruno Souza", "mateus-falcao": "Mateus Falcão"},
+    "daily": {"existe": true}
+  }
+}
+</script>
+
+<script>
+(() => {
+  'use strict';
+  const D = JSON.parse(document.getElementById('painel-data').textContent);
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const toMin = (s) => { const [h, m] = String(s || '0:0').split(':').map(Number); return h * 60 + (m || 0); };
+  const addDias = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const dias = (a, b) => Math.round((new Date(b + 'T12:00:00Z') - new Date(a + 'T12:00:00Z')) / 864e5);
+  const HOJE = D.hoje;
+  const ME = 'mateus-falcao';
+  const QS = [['P1', 'P1 · AGORA', 100], ['P2', 'P2 · AGENDAR', 50], ['P3', 'P3 · RÁPIDO', 20], ['P4', 'P4 · TALVEZ', 10]];
+  const XP = Object.fromEntries(QS.map((q) => [q[0], q[2]]));
+  const XP_NIVEL = 300;
+  const SERV_W = 'host:jarvis-escrita';
+
+  // ── Estado ──
+  let P = D.painel;
+  const A = D.agenda || [];
+  const prop = D.proposta || {};
+  const byText = (t) => (P.todo || []).find((x) => x.texto === t || x.texto.startsWith(t));
+  const top3 = (prop.top3 && prop.top3.length ? prop.top3 : (prop.top3Texto || []).map((t) => byText(t)?.id).filter(Boolean)).slice(0, 3);
+  const blocos = (prop.blocos || []).map((b) => ({ ...b, tarefa: b.tarefa || (b.tarefaTexto ? byText(b.tarefaTexto)?.id : null) || null }));
+  const ini = toMin((D.expediente && D.expediente.inicio) || '09:00');
+  const fim = toMin((D.expediente && D.expediente.fim) || '18:00');
+  const live = { mcp: null, db: null, escrita: false };
+  const pendentes = new Set();
+  let som = false;
+  try { som = localStorage.getItem('quest-som') === '1'; } catch (e) {}
+
+  const task = (id) => (P.todo || []).find((t) => t.id === id);
+  const abertas = () => (P.todo || []).filter((t) => !t.feito);
+  const nome = (id) => (P.pessoas && P.pessoas[id]) || String(id || '').replace(/-/g, ' ');
+  const unlink = (s) => String(s || '').replace(/^\[\[|\]\]$/g, '').split('|')[0];
+  const md = (s) => esc(s)
+    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, id, al) => esc(al || nome(id)))
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (_, l, u) => `<a href="${u}" target="_blank" rel="noopener" style="color:inherit">${l}</a>`);
+  const prazo = (t) => t.campos && t.campos.prazo;
+  const atrasada = (t) => !t.feito && t.quadrante !== 'AG' && prazo(t) && prazo(t) < HOJE;
+
+  // XP = tarefas concluídas nos últimos 7 dias (Concluídas ficam 7 dias no TODO.md)
+  function placar() {
+    const ini7 = addDias(HOJE, -6);
+    const feitas = (P.todo || []).filter((t) => t.feito && (!t.campos || !t.campos.feito || t.campos.feito >= ini7));
+    const xp = feitas.reduce((s, t) => s + (XP[t.quadrante] || 20), 0);
+    const hoje = feitas.filter((t) => t.campos && t.campos.feito === HOJE).length;
+    return { xp, nivel: Math.floor(xp / XP_NIVEL) + 1, resto: xp % XP_NIVEL, hoje };
+  }
+
+  // ── Sprites (arte original, desenhada em pixels) ──
+  const PAL = { k: '#0b0b1e', w: '#fcfcfc', g: '#fc9838', y: '#f8d878', b: '#3c50d8', r: '#e40058', s: '#a8b4f0', p: '#00a800', o: '#c84c0c' };
+  const SPR = {
+    hero: ['...kkkkk...', '..kggggk...', '.kggggggk..', '.kssssssk..', '.kswksw sk.'.replace(' ', 's'), '.kssssssk..', '..kkkkkk...', '.kbbyybbk..', 'kbbbyybbbk.', 'kwbbbbbbwk.', '.kbbkkbbk..', '.kkk..kkk..'],
+    bug: ['...k....k...', '....k..k....', '..kkkkkkkk..', '.krrrrrrrrk.', 'krrwkrrwkrrk', 'krrkkrrkkrrk', 'krrrrrrrrrrk', '.krrrrrrrrk.', '..kokkkkok..', '.kk.k..k.kk.'],
+    slime: ['....kkkk....', '..kkyyyykk..', '.kyyyyyyyyk.', 'kyywkyywkyyk', 'kyykkyykkyyk', 'kyyyyyyyyyyk', 'kyyyyyyyyyyk', '.kkkkkkkkkk.'],
+    flag: ['kkkkk', 'kpppk', 'kpwpk', 'kpppk', 'kkkkk']
+  };
+  function sprite(nm) {
+    const rows = SPR[nm], h = rows.length, w = Math.max(...rows.map((r) => r.length));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    rows.forEach((r, j) => [...r].forEach((ch, i) => { if (PAL[ch]) { x.fillStyle = PAL[ch]; x.fillRect(i, j, 1, 1); } }));
+    return c;
+  }
+  const spriteURL = {}; const url = (nm) => (spriteURL[nm] ||= sprite(nm).toDataURL());
+
+  // ── Som 8-bit (onda quadrada, só depois de ligar no botão) ──
+  let ac = null;
+  function bip(notas) {
+    if (!som) return;
+    try {
+      ac ||= new (window.AudioContext || window.webkitAudioContext)();
+      let t = ac.currentTime;
+      for (const [f, d] of notas) { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.value = f; g.gain.value = .06; o.connect(g).connect(ac.destination); o.start(t); o.stop(t + d); t += d; }
+    } catch (e) {}
+  }
+  const SFX = { moeda: [[988, .07], [1319, .25]], nivel: [[523, .09], [659, .09], [784, .09], [1047, .3]], erro: [[196, .15], [147, .25]] };
+
+  // ── Feedback ──
+  function toast(msg, err) {
+    const t = document.createElement('div'); t.className = 'toast' + (err ? ' err' : ''); t.textContent = msg;
+    $('toasts').append(t); setTimeout(() => t.remove(), err ? 7000 : 3500);
+  }
+  function pop(el, txt) {
+    const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top;
+    const c = document.createElement('div'); c.className = 'coin'; c.style.left = (x - 8) + 'px'; c.style.top = (y - 10) + 'px';
+    const p = document.createElement('div'); p.className = 'pop'; p.textContent = txt; p.style.left = (x - 24) + 'px'; p.style.top = (y - 30) + 'px';
+    document.body.append(c, p); setTimeout(() => { c.remove(); p.remove(); }, 1000);
+  }
+  function banner(txt, sub) {
+    const b = document.createElement('div'); b.className = 'banner'; b.innerHTML = `<div>${esc(txt)}<small>${esc(sub || '')}</small></div>`;
+    document.body.append(b); setTimeout(() => b.remove(), 2200);
+  }
+
+  // ── Gravação: servidor local → fila no db → copiar (igual ao Painel) ──
+  async function gravar(tool, args, rotulo) {
+    if (live.escrita) {
+      try {
+        const r = await live.mcp.callTool(SERV_W, tool, args);
+        toast('Gravado no vault: ' + rotulo);
+        return r.payload ?? r.structuredContent ?? { ok: true };
+      } catch (e) {
+        if (e.code === 'cancelled') { toast('Cancelado no app: nada foi gravado.', true); throw e; }
+        if (e.code === 'tool_error') { toast('O vault recusou: ' + (e.message || 'erro'), true); throw e; }
+        if (e.code === 'server_unavailable' || e.code === 'upstream_error') { toast('Sem resposta do vault. Confira antes de repetir (pode ter gravado).', true); throw e; }
+        live.escrita = false; modo();
+      }
+    }
+    if (live.db) {
+      await live.db.collection('fila').add({ tool, args, rotulo, em: new Date().toISOString(), status: 'pendente' });
+      toast('Na fila: ' + rotulo + ' (o Claude grava no próximo /checkin)');
+      return { fila: true };
+    }
+    $('copy-txt').textContent += `${tool} ${JSON.stringify(args)}\n`; $('fallback').hidden = false;
+    toast('Sem gravação aqui: copie o resumo no fim da página.', true);
+    return { copiar: true };
+  }
+  async function recarregar(silencioso) {
+    if (!live.escrita) { render(); return; }
+    try {
+      const r = await live.mcp.callTool(SERV_W, 'jarvis_painel', { data: HOJE }, { cache: false });
+      const p = r.payload ?? r.structuredContent;
+      if (p && Array.isArray(p.todo)) P = { ...P, ...p };
+    } catch (e) { if (!silencioso) toast('Não consegui reler o vault (' + e.code + ').', true); }
+    render();
+  }
+  async function tarefa(args, rotulo, otimista) {
+    const back = JSON.stringify(P.todo);
+    if (otimista) { otimista(); render(); }
+    if (args.id) pendentes.add(args.id);
+    try { await gravar('jarvis_tarefa', { versao: P.versao, ...args }, rotulo); }
+    catch (e) { P.todo = JSON.parse(back); bip(SFX.erro); }
+    finally { if (args.id) pendentes.delete(args.id); }
+    await recarregar(true);
+  }
+  function concluir(id, el) {
+    const t = task(id); if (!t || t.feito || pendentes.has(id)) return;
+    const antes = placar().nivel;
+    if (el) pop(el, '+' + (XP[t.quadrante] || 20));
+    bip(SFX.moeda);
+    tarefa({ acao: 'concluir', id }, `concluída: "${t.texto}"`, () => { t.feito = true; t.campos = { ...t.campos, feito: HOJE }; });
+    const depois = placar();
+    if (depois.nivel > antes) { bip(SFX.nivel); banner('LEVEL UP!', `Nível ${depois.nivel}`); }
+    else if (top3.length && top3.every((x) => task(x)?.feito)) banner('FASE COMPLETA!', 'Missão do dia cumprida');
+  }
+  function mover(id, q) {
+    const t = task(id); if (!t || t.quadrante === q) return;
+    tarefa({ acao: 'mover', id, quadrante: q }, `"${t.texto}" → ${q}`, () => { t.quadrante = q; });
+  }
+
+  // ── Render ──
+  function hud() {
+    const s = placar();
+    $('hud-lv').textContent = `MATEUS LV${s.nivel}`;
+    $('hud-xpbar').style.width = Math.round(s.resto / XP_NIVEL * 100) + '%';
+    $('hud-xp').textContent = String(s.xp).padStart(6, '0');
+    $('hud-coins').textContent = '×' + String(s.hoje).padStart(2, '0');
+    const d = new Date(HOJE + 'T12:00:00Z'), t0 = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    const sem = 1 + Math.round(((d - t0) / 864e5 - 3 + ((t0.getUTCDay() + 6) % 7)) / 7);
+    $('hud-world').textContent = `W${sem}-${((d.getUTCDay() + 6) % 7) + 1}`;
+    const agora = agoraMin();
+    $('hud-time').textContent = agora === null ? '---' : String(Math.max(0, fim - agora)).padStart(3, '0') + ' MIN';
+  }
+  function agoraMin() {
+    const now = new Date(); const iso = new Date(now.getTime() - 3 * 3600e3).toISOString();
+    if (iso.slice(0, 10) !== HOJE) return null;
+    return toMin(iso.slice(11, 16));
+  }
+  function stage() {
+    const W = 100, span = Math.max(60, fim - ini);
+    const x = (m) => ((Math.min(Math.max(m, ini), fim) - ini) / span) * 92 + 4; // % com margem
+    let h = '';
+    [[8, 30], [38, 18], [70, 36]].forEach(([l, t]) => { h += `<div class="cloud" style="left:${l}%;top:${t}px" aria-hidden="true"></div>`; });
+    h += '<div class="ground" aria-hidden="true"></div>';
+    for (let m = Math.ceil(ini / 60) * 60; m <= fim; m += 60) h += `<span class="hour" style="left:${x(m)}%">${String(m / 60).padStart(2, '0')}h</span>`;
+    for (const e of A.filter((e) => (e.data || HOJE) === HOJE)) {
+      const a = toMin(e.inicio), b = toMin(e.fim), dur = Math.max(15, b - a);
+      const ht = Math.min(110, 34 + dur);
+      h += `<div class="pipe ${e.tipo === 'client' ? 'client' : ''}" style="left:${x(a)}%;width:${Math.max(3.2, x(b) - x(a))}%;height:${ht}px" title="${esc(e.inicio + '–' + e.fim + ' ' + e.titulo)}"><div class="lip"></div><div class="body"></div><div class="lbl">${esc(e.inicio)} ${esc(e.titulo)}</div></div>`;
+    }
+    blocos.forEach((b, i) => {
+      const a = toMin(b.inicio), z = toMin(b.fim), y = 112 + (i % 2) * 22;
+      h += `<div class="plat" style="left:${x(a)}%;width:${Math.max(3, x(z) - x(a))}%;bottom:${y}px" aria-hidden="true"><span>${esc(b.rotulo || 'Foco')}</span></div>`;
+      const t = b.tarefa && task(b.tarefa);
+      if (t) h += `<button type="button" class="qblock ${t.feito ? 'used' : ''}" style="left:calc(${x(a)}% + 4px);bottom:${y + 22}px" data-hit="${esc(t.id)}" aria-label="${t.feito ? 'Feita' : 'Concluir'}: ${esc(t.texto)}" ${t.feito ? 'disabled' : ''}>${t.feito ? '✓' : '?'}</button>`;
+    });
+    h += `<div class="flag" style="left:${x(fim) - 1}%" aria-hidden="true"></div>`;
+    const now = agoraMin(), pos = now === null ? 4 : x(now);
+    h += `<img class="hero" src="${url('hero')}" alt="" style="left:${pos}%"><span class="now-tag" style="left:${pos}%">${now === null ? 'INÍCIO' : 'VOCÊ ' + String(Math.floor(now / 60)).padStart(2, '0') + ':' + String(now % 60).padStart(2, '0')}</span>`;
+    $('stage').innerHTML = h;
+    const reun = A.filter((e) => (e.data || HOJE) === HOJE).length;
+    $('fase-sub').textContent = `${D.diaSemana || ''} · ${HOJE.split('-').reverse().join('/')} · ${reun} cano(s) = reunião · plataforma = bloco de foco`;
+  }
+  function missoes() {
+    const ts = top3.map(task).filter(Boolean);
+    $('missoes').innerHTML = ts.length ? ts.map((t, i) => `<li>
+      <span class="m-ico ${t.feito ? 'done' : ''}" aria-hidden="true">${t.feito ? '✓' : i + 1}</span>
+      <div class="m-t"><div class="tx">${md(t.texto)}</div><div class="mt">${esc(t.quadrante)} · +${XP[t.quadrante] || 20} XP${t.ctx ? ' · ' + esc(nome(t.ctx)) : ''}${prazo(t) ? ' · prazo ' + esc(prazo(t).slice(8) + '/' + prazo(t).slice(5, 7)) : ''}</div></div>
+      ${t.feito ? '<span class="chip" style="color:var(--gold-2)">FEITA</span>' : `<button class="hit" type="button" data-hit="${esc(t.id)}">GOLPE</button>`}</li>`).join('')
+      : '<li><p class="empty">Sem missão definida. Rode /checkin para o Jarvis propor o Top 3.</p></li>';
+    const f = ts.filter((t) => t.feito).length;
+    $('goal-txt').textContent = `${f}/${ts.length || 3} MISSÕES`;
+    $('goal-bar').style.width = (ts.length ? Math.round(f / ts.length * 100) : 0) + '%';
+    $('intencao').textContent = prop.intencao || 'Defina a intenção do dia no /checkin.';
+  }
+  function mundos() {
+    const projs = (P.projetos || []);
+    const ids = new Set(projs.map((p) => p.id));
+    const lista = projs.map((p) => ({ ...p, ts: (P.todo || []).filter((t) => t.ctx === p.id && t.quadrante !== 'AG') }));
+    const livres = (P.todo || []).filter((t) => t.quadrante !== 'AG' && !ids.has(t.ctx));
+    if (livres.length) lista.push({ id: '_livre', titulo: 'Mundo livre', status: 'sem projeto', prazo: null, ts: livres });
+    $('mundos').innerHTML = lista.length ? lista.map((p, i) => {
+      const done = p.ts.filter((t) => t.feito).length, tot = p.ts.length;
+      const pct = tot ? done / tot : 0;
+      const d = p.prazo ? dias(HOJE, p.prazo) : null;
+      const burn = d !== null && d < 0;
+      const blocks = [...p.ts].sort((a, b) => (b.feito - a.feito)).map((t) => `<button type="button" class="b ${t.feito ? 'done' : atrasada(t) ? 'late' : ''}" ${t.feito ? 'disabled' : `data-hit="${esc(t.id)}"`} title="${esc(t.texto)}" aria-label="${t.feito ? 'Feita' : 'Concluir'}: ${esc(t.texto)}">${t.feito ? '✓' : '?'}</button>`).join('');
+      return `<div class="world">
+        <div class="w-name">${p.id === '_livre' ? 'EXTRA' : 'MUNDO ' + (i + 1)}<small>${esc(p.titulo)}</small></div>
+        <div class="track">${blocks || '<span class="empty" style="margin:0 0 16px">Sem tarefas ligadas no TODO</span>'}<img class="mini" src="${url('hero')}" alt="" style="left:calc(6px + (100% - 40px) * ${pct.toFixed(3)})"><span class="castle ${burn ? 'burn' : ''}" aria-hidden="true"></span></div>
+        <div class="w-due">${done}/${tot} FEITAS<br>${d === null ? '<span>SEM PRAZO</span>' : burn ? `<span class="late">${-d}D ATRASO</span>` : d === 0 ? '<span class="late">CHEFE HOJE</span>' : `${d}D P/ CASTELO`}</div>
+      </div>`;
+    }).join('') : '<p class="empty">Nenhum projeto ativo no vault.</p>';
+  }
+  function inimigos() {
+    const it = [];
+    for (const t of abertas().filter(atrasada)) it.push({ spr: 'bug', k: `ATRASO · ${-dias(HOJE, prazo(t))}D`, tx: t.texto, acts: [['hit', t.id, 'GOLPE'], ...(t.quadrante !== 'P1' ? [['mv', t.id, 'P/ P1']] : [])] });
+    for (const t of abertas().filter((t) => t.quadrante === 'AG' && t.campos && t.campos.cobrar && t.campos.cobrar <= HOJE)) it.push({ spr: 'slime', warn: true, k: `COBRAR · ${esc(nome(unlink(t.campos.quem)))}`, tx: t.texto, acts: [] });
+    for (const c of (P.compromissos || []).filter((c) => c.prazo && c.prazo < HOJE)) it.push({ spr: c.assumido_por === ME ? 'bug' : 'slime', warn: c.assumido_por !== ME, k: c.assumido_por === ME ? 'VOCÊ DEVE' : `${esc(nome(c.assumido_por))} DEVE`, tx: c.oque + (c.cliente ? ' · ' + nome(c.cliente) : ''), acts: [] });
+    for (const r of (prop.riscos || [])) it.push({ spr: 'slime', warn: true, k: 'ALERTA', tx: r, acts: [] });
+    $('inimigos').innerHTML = it.length ? it.map((e) => `<div class="box enemy"><img src="${url(e.spr)}" alt="" width="40" height="40" style="image-rendering:pixelated">
+      <div style="min-width:0"><div class="k ${e.warn ? 'warn' : ''}">${e.k}</div><div class="tx">${md(e.tx)}</div>
+      ${e.acts.length ? `<div class="acts">${e.acts.map(([a, id, l]) => a === 'hit' ? `<button class="hit" type="button" data-hit="${esc(id)}">${l}</button>` : `<button class="hit" type="button" data-p1="${esc(id)}">${l}</button>`).join('')}</div>` : ''}</div></div>`).join('')
+      : `<div class="box clear"><img src="${url('flag')}" alt="" width="30" height="30" style="image-rendering:pixelated"><p style="margin:0">Caminho livre. Nenhum atraso nem cobrança vencida.</p></div>`;
+  }
+  const abertoCol = {};
+  function board() {
+    $('board').innerHTML = QS.map(([q, rot, xp]) => {
+      const its = abertas().filter((t) => t.quadrante === q).sort((a, b) => String(prazo(a) || '9').localeCompare(String(prazo(b) || '9')));
+      const lim = abertoCol[q] ? its.length : 5;
+      return `<div class="col box" data-col="${q}">
+        <div class="col-h"><span>${rot}</span><span class="xp">+${xp}</span></div>
+        ${its.slice(0, lim).map((t) => `<div class="card ${pendentes.has(t.id) ? 'pend' : ''}" draggable="true" data-card="${esc(t.id)}">
+          <div class="tx">${md(t.texto)}</div>
+          <div class="mt">${t.ctx ? `<span>${esc(nome(t.ctx))}</span>` : ''}${prazo(t) ? `<span class="${atrasada(t) ? 'late' : ''}">⏱ ${esc(prazo(t).slice(8) + '/' + prazo(t).slice(5, 7))}</span>` : ''}</div>
+          <div class="row"><button class="hit" type="button" data-hit="${esc(t.id)}">GOLPE</button>
+            <select data-mv="${esc(t.id)}" aria-label="Mover ${esc(t.texto)}">${QS.map(([k]) => `<option value="${k}"${k === q ? ' selected' : ''}>${k}</option>`).join('')}<option value="AG">Aguardando</option></select></div>
+        </div>`).join('') || '<p class="empty">Vazio</p>'}
+        ${its.length > 5 ? `<button class="more" type="button" data-more="${q}">${abertoCol[q] ? 'MENOS' : `+${its.length - 5} BLOCOS`}</button>` : ''}
+      </div>`;
+    }).join('');
+  }
+  function npcs() {
+    const m = {};
+    const add = (id, tipo, txt) => { (m[id] ||= { deve: [], devo: [] })[tipo].push(txt); };
+    for (const t of abertas().filter((t) => t.quadrante === 'AG')) {
+      const q = unlink(t.campos && t.campos.quem) || 'sem-dono';
+      add(q, 'deve', md(t.texto) + (t.campos && t.campos.cobrar && t.campos.cobrar <= HOJE ? '<span class="cobrar">COBRAR</span>' : ''));
+    }
+    for (const c of (P.compromissos || [])) {
+      if (c.assumido_por && c.assumido_por !== ME) add(c.assumido_por, 'deve', esc(c.oque) + (c.prazo && c.prazo < HOJE ? '<span class="cobrar">VENCIDO</span>' : ''));
+      else if (c.assumido_por === ME && c.cliente) add(c.cliente, 'devo', esc(c.oque) + (c.prazo ? ' · ' + esc(c.prazo.slice(8) + '/' + c.prazo.slice(5, 7)) : ''));
+    }
+    const ks = Object.keys(m);
+    $('npcs').innerHTML = ks.length ? ks.map((k) => `<div class="box npc"><div class="who">${esc(nome(k).toUpperCase())}</div>
+      ${m[k].deve.length ? `<div>Te deve:</div><ul>${m[k].deve.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}
+      ${m[k].devo.length ? `<div style="margin-top:6px">Você deve:</div><ul>${m[k].devo.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}</div>`).join('')
+      : '<p class="empty" style="color:var(--paper)">Ninguém esperando nada.</p>';
+  }
+  function modo() {
+    $('modo').textContent = live.escrita ? 'Modo: ao vivo (grava no vault)' : live.db ? 'Modo: retrato · fila (diga "confirmei" no chat)' : 'Modo: retrato';
+    $('gerado').textContent = 'Gerado em ' + String(D.geradoEm || '').slice(0, 16).replace('T', ' ');
+    $('b-som').textContent = 'SOM: ' + (som ? 'ON' : 'OFF'); $('b-som').setAttribute('aria-pressed', String(som));
+  }
+  function render() { hud(); stage(); missoes(); mundos(); inimigos(); board(); npcs(); modo(); }
+
+  // ── Eventos ──
+  document.addEventListener('click', async (e) => {
+    const el = e.target.closest('button'); if (!el) return;
+    const d = el.dataset;
+    if (d.hit) { concluir(d.hit, el); return; }
+    if (d.p1) { mover(d.p1, 'P1'); return; }
+    if (d.more) { abertoCol[d.more] = !abertoCol[d.more]; board(); return; }
+    if (el.id === 'b-som') { som = !som; try { localStorage.setItem('quest-som', som ? '1' : '0'); } catch (x) {} modo(); bip(SFX.moeda); return; }
+    if (el.id === 'b-reload') { await recarregar(); toast(live.escrita ? 'Vault relido.' : 'Sem servidor local: mostrando o retrato.'); return; }
+    if (el.id === 'b-copy') { const t = $('copy-txt').textContent; navigator.clipboard?.writeText(t).then(() => toast('Copiado.'), () => { const r = document.createRange(); r.selectNodeContents($('copy-txt')); getSelection().removeAllRanges(); getSelection().addRange(r); }); }
+  });
+  document.addEventListener('change', (e) => { const d = e.target.dataset; if (d.mv) mover(d.mv, e.target.value); });
+  let arrastando = null;
+  document.addEventListener('dragstart', (e) => { const c = e.target.closest('[data-card]'); if (c) { arrastando = c.dataset.card; e.dataTransfer.effectAllowed = 'move'; } });
+  document.addEventListener('dragover', (e) => { const c = e.target.closest('[data-col]'); if (c && arrastando) { e.preventDefault(); document.querySelectorAll('.col.over').forEach((x) => x !== c && x.classList.remove('over')); c.classList.add('over'); } });
+  document.addEventListener('drop', (e) => { const c = e.target.closest('[data-col]'); if (c && arrastando) { e.preventDefault(); mover(arrastando, c.dataset.col); } arrastando = null; document.querySelectorAll('.col.over').forEach((x) => x.classList.remove('over')); });
+  document.addEventListener('dragend', () => { arrastando = null; document.querySelectorAll('.col.over').forEach((x) => x.classList.remove('over')); });
+  setInterval(() => { hud(); stage(); }, 60000);
+
+  // ── Boot ──
+  render();
+  (async () => {
+    const use = (n) => (window.claude ? window.claude.use(n).catch(() => null) : Promise.resolve(null));
+    const [mcp, db] = await Promise.all([use('mcp'), use('db')]);
+    live.mcp = mcp; live.db = db;
+    if (mcp) {
+      try { const lt = await mcp.listTools(); live.escrita = (lt.servers || []).some((x) => x.server === SERV_W && (x.tools || []).length); } catch (e) {}
+    }
+    await recarregar(true);
+  })();
+})();
+</script>

@@ -1,0 +1,20 @@
+# Dependências e empacotamento
+# Sem barra no fim de propósito: no Windows o node_modules é uma junction para
+# %LOCALAPPDATA%\jarvis-torre\node_modules (scripts/instalar.ps1), e o git pode vê-la
+# como link, que o padrão "node_modules/" (só pasta) não pega.
+node_modules
+node_modules/
+build/
+public/build/
+*.log
+
+# Arquivos de estado, caso alguém aponte TORRE_DATA_DIR para dentro do repositório
+# (o normal é %USERPROFILE%\.torre, fora do vault)
+conexoes-estado.json
+conexoes.json
+hooks-settings.json
+rotinas-estado.json
+rotinas.json
+sessions.json
+torre.json
+.DS_Store

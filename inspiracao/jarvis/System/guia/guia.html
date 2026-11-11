@@ -1,0 +1,377 @@
+<title>Guia do Jarvis</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!--
+  Guia de uso do Jarvis (System/guia/guia.html) — publicado como Artifact e aberto
+  no início de toda conversa (hook SessionStart → System/scripts/guia.mjs).
+
+  COMO ATUALIZAR (skill `guia`, .claude/skills/guia/SKILL.md):
+  - Edite SÓ o JSON de <script id="guia-data">. A página é renderizada a partir dele.
+  - Texto aceita formatação inline mínima: **negrito**, `código` e [rótulo](https://url).
+    Todo o resto é escapado.
+  - Arquivo de ESTRUTURA (vai pro GitHub): nada de nomes reais de clientes/pessoas,
+    ids reais ou dados sensíveis. Exemplos usam fictícios (acme, ana-lima).
+  - Depois de editar: publicar no mesmo Artifact e `node System/scripts/guia.mjs gravar --url <url>`.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: manual de bolso — índice fixo à esquerda, seções empilhadas; comandos como fichas de terminal. */
+:root{
+  --bg:#f3f4f6; --surface:#ffffff; --surface-2:#e9ebf0; --text:#191b22; --muted:#5d6273;
+  --border:#d9dce4; --accent:#2f4bd1; --accent-soft:#e3e8fb; --accent-ink:#ffffff;
+  --term:#1b1e27; --term-ink:#e6e8ef; --term-dim:#8b91a6; --term-cmd:#9fb3ff;
+  --ok:#1f7a4d; --ok-soft:#e1f2e8; --warn:#a15c00; --warn-soft:#fbefd9;
+  --display:"Bricolage Grotesque",system-ui,"Segoe UI",sans-serif;
+  --body:"IBM Plex Sans",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12141a; --surface:#1a1d25; --surface-2:#232733; --text:#e8eaf0; --muted:#9aa0b3;
+    --border:#2e3240; --accent:#8ea2ff; --accent-soft:#232a48; --accent-ink:#10131f;
+    --term:#0c0e13; --term-ink:#e6e8ef; --term-dim:#7d8398; --term-cmd:#a9bbff;
+    --ok:#5fcf97; --ok-soft:#173022; --warn:#f0b35a; --warn-soft:#352612;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12141a; --surface:#1a1d25; --surface-2:#232733; --text:#e8eaf0; --muted:#9aa0b3;
+  --border:#2e3240; --accent:#8ea2ff; --accent-soft:#232a48; --accent-ink:#10131f;
+  --term:#0c0e13; --term-ink:#e6e8ef; --term-dim:#7d8398; --term-cmd:#a9bbff;
+  --ok:#5fcf97; --ok-soft:#173022; --warn:#f0b35a; --warn-soft:#352612;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font:15.5px/1.6 var(--body);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:var(--accent)}
+code{font:.88em var(--mono);background:var(--surface-2);padding:.08em .35em;border-radius:5px}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;letter-spacing:-.01em}
+
+.app{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100vh}
+.side{position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);background:var(--surface);padding:24px 14px}
+.brand{font:600 11px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 8px 10px}
+.side h1{font-size:22px;margin:0 0 18px 10px}
+.toc{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.toc a{display:block;padding:7px 10px;border-radius:8px;text-decoration:none;color:var(--text);font-size:14.5px}
+.toc a:hover{background:var(--surface-2)}
+.toc a.on{background:var(--accent-soft);font-weight:600}
+.stamp{margin:22px 10px 0;font-size:12.5px;color:var(--muted);line-height:1.5}
+
+.main{padding-block:36px 96px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+.hero h2{font-size:clamp(28px,4vw,38px);line-height:1.12;margin:0 0 12px}
+.hero p{font-size:17px;color:var(--muted);margin:0;max-width:62ch}
+.search{margin-top:22px;display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px}
+.search input{flex:1;min-width:0;border:0;background:none;font:16px var(--body);color:var(--text);outline:none}
+.search kbd{font:12px var(--mono);color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:1px 6px}
+.count{font-size:13px;color:var(--muted);margin-top:8px;min-height:1.4em}
+
+section h2{font-size:24px;margin:0 0 6px}
+.sub{color:var(--muted);margin:0 0 20px;max-width:65ch}
+
+/* Dia típico: linha do tempo real (horários das rotinas agendadas) */
+.day{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.day li{display:grid;grid-template-columns:64px 18px minmax(0,1fr);gap:12px;align-items:start}
+.day .t{font:500 14px/1.6 var(--mono);color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.day .rail{position:relative;align-self:stretch}
+.day .rail::before{content:"";position:absolute;left:8px;top:0;bottom:0;width:2px;background:var(--border)}
+.day li:first-child .rail::before{top:10px}
+.day li:last-child .rail::before{bottom:calc(100% - 10px)}
+.day .rail::after{content:"";position:absolute;left:3px;top:6px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:2px solid var(--accent)}
+.day .auto .rail::after{background:var(--accent)}
+.day .body{padding-bottom:18px;min-width:0}
+.day .body b{font-weight:600}
+.day .body p{margin:2px 0 0;color:var(--muted)}
+.pill{display:inline-block;font:500 11.5px/1 var(--body);letter-spacing:.03em;padding:4px 7px;border-radius:99px;vertical-align:2px;margin-left:6px}
+.pill.auto{background:var(--accent-soft);color:var(--accent)}
+.pill.manual{background:var(--surface-2);color:var(--muted)}
+.pill.conf{background:var(--warn-soft);color:var(--warn)}
+.pill.ro{background:var(--ok-soft);color:var(--ok)}
+
+/* Fichas de comando */
+.grp{display:flex;flex-direction:column;gap:14px}
+.grp + .grp{margin-top:30px}
+.grp h3{font-size:15px;font-family:var(--body);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.card-h{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline;padding:14px 16px 4px}
+.card-h .cmd{font:600 17px var(--mono);color:var(--accent)}
+.card-h .args{font:14px var(--mono);color:var(--muted);min-width:0;overflow-wrap:anywhere}
+.card-b{padding:4px 16px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.card-b p{margin:0}
+.kv{display:grid;grid-template-columns:110px minmax(0,1fr);gap:4px 12px;font-size:14px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.term{background:var(--term);color:var(--term-ink);font:13.5px/1.6 var(--mono);padding:10px 12px 10px 14px;display:flex;flex-direction:column;gap:2px}
+.term .ln{display:flex;gap:10px;align-items:center;min-width:0}
+.term .ln span{flex:1;min-width:0;overflow-x:auto;white-space:pre}
+.term .ln span::before{content:"› ";color:var(--term-dim)}
+.term .ln em{font-style:normal;color:var(--term-cmd)}
+.cp{flex:none;background:none;border:1px solid #3a3f50;color:var(--term-dim);border-radius:6px;font:12px var(--body);padding:2px 8px}
+.cp:hover{color:var(--term-ink);border-color:var(--term-dim)}
+
+/* Tabelas */
+.tbl{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-weight:600;font-size:12.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);background:var(--surface-2)}
+tr:last-child td{border-bottom:0}
+td code{white-space:nowrap}
+
+.rules{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.rules li{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.rules b{display:block;margin-bottom:4px}
+.rules p{margin:0;color:var(--muted);font-size:14.5px}
+.hide{display:none!important}
+
+@media (max-width:860px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;height:auto;border-right:0;border-bottom:1px solid var(--border);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .toc{flex-direction:row;flex-wrap:wrap}
+  .stamp{display:none}
+  .rules{grid-template-columns:minmax(0,1fr)}
+  .kv{grid-template-columns:minmax(0,1fr)}
+  .kv dt{margin-top:4px}
+}
+@media (prefers-reduced-motion:no-preference){ html{scroll-behavior:smooth} }
+</style>
+
+<div class="app">
+  <aside class="side">
+    <p class="brand">Segundo cérebro</p>
+    <h1>Jarvis</h1>
+    <ul class="toc" id="toc"></ul>
+    <p class="stamp" id="stamp"></p>
+  </aside>
+  <main class="main">
+    <div class="wrap" id="root"></div>
+  </main>
+</div>
+
+<script type="application/json" id="guia-data">
+{
+  "atualizado": "2026-11-06",
+  "intro": "Tudo o que entra no seu dia (e-mail, agenda, Teams, Jira, sessões do Claude Code e capturas) vira um grafo de notas ligadas e um TODO único. Você conversa com o Jarvis por **comandos** dentro do Claude Code, aberto na pasta do vault. Ele só lê os sistemas externos; quem decide é você.",
+  "dia": [
+    {"hora": "07:30", "nome": "Ritual matinal", "cmd": "/ritual", "auto": true, "faz": "Sincroniza as fontes, processa o Inbox, reprioriza o TODO, escreve o Briefing no Daily de hoje e gera o 5 min de conhecimento (cartão no Jarvis)."},
+    {"hora": "09:00", "nome": "Check-in", "cmd": "/checkin", "auto": true, "faz": "Guarda as sessões do Claude Code inteiras em `Sessoes/`, resume as novas (decisões, compromissos e aprendizados vão para o grafo) e publica o **Painel do Jarvis** (sempre o mesmo link), um app de projetos com visual 8-bit: o Início traz o check-in (agenda, intenção, Top 3, blocos, riscos, Claude) e a barra lateral leva a tarefas, entrada, projetos, ciclos, análises e páginas. Aberto no app do Claude, o que você mexe ali grava direto no vault; clique **Confirmar dia** para fechar o plano."},
+    {"hora": "o dia todo", "nome": "Capturar, anotar, perguntar", "cmd": "/capturar · /tarefa · /consultar", "auto": false, "faz": "Jogue ideias no Inbox, crie e conclua tarefas, pergunte ao grafo. Anotações livres vão em `## Anotações do dia` no Daily."},
+    {"hora": "depois de cada reunião", "nome": "Pós-reunião", "cmd": "/pos-reuniao", "auto": false, "faz": "Pega a transcrição do Teams da reunião que acabou e grava no grafo reunião, pessoas, temas, projetos, decisões e compromissos (com trecho literal); o que você prometeu vai para o TODO. Pode ser agendado a cada 30 min no expediente — peça e confirme com \"sim\". Lembre de ligar o **Transcrever** no Teams."},
+    {"hora": "18:00", "nome": "Checkout", "cmd": "/checkout", "auto": true, "faz": "Feito, travado, aprendizados, amanhã e o que vai para o Jira. Atualiza TODO e compromissos com o que você confirmar e faz commit + push no repo privado."},
+    {"hora": "sex 16:30", "nome": "Revisão semanal", "cmd": "/semanal", "auto": true, "faz": "Fecha a semana (entregas, compromissos, temas quentes, aprendizado) e escolhe o Top 3 da próxima."}
+  ],
+  "grupos": [
+    {"titulo": "Rotinas do dia", "itens": [
+      {"cmd": "/ritual", "args": "", "resumo": "Ritual matinal completo: sync das fontes ativas (Outlook, Agenda, Teams, Jira, Claude Code, manual), atualização do seu perfil a partir do Teams, ingest, reconciliação do TODO e briefing.", "quando": "Roda sozinho seg–sex 07:30. Rode à mão se o agendado falhou ou se você chegou mais tarde e quer o briefing atualizado.", "escreve": "`Daily/<hoje>.md` (Briefing + Entrou), grafo, `TODO.md`, `log.md`, commit + push", "exemplos": ["/ritual"]},
+      {"cmd": "/pos-reuniao", "args": "[assunto ou data]", "resumo": "Logo depois da reunião: lê a transcrição do Teams, numera as falas e quebra em trechos; um agente extrator lê cada trecho e devolve só entidades e relações; o Jarvis funde, confere que cada citação é literal e grava reunião, pessoas, cliente, projetos (vários, se for o caso), temas, decisões e compromissos. Tags e temas saem do que foi dito — reunião futura fica só com participantes e a tag `futura`.", "quando": "Quando uma reunião do Teams acabar (com o **Transcrever** ligado). Sem argumento, pega todas as que terminaram desde a última rodada; o ritual de amanhã varre o que ficar para trás.", "escreve": "`Reunioes/`, `Pessoas/`, `Projetos/`, `Temas/`, `Decisoes/`, `Compromissos/`, `TODO.md` (seus compromissos; os dos outros em Aguardando), `index.md`, `log.md`", "exemplos": ["/pos-reuniao", "/pos-reuniao FUP acme", "/pos-reuniao 2026-10-21"], "obs": "Sem transcrição no Teams (Transcrever desligado ou só o organizador enxerga) a reunião não entra; nada é inventado."},
+      {"cmd": "/checkin", "args": "[intenção | confirmei]", "resumo": "Primeiro guarda suas **sessões do Claude Code** dos últimos 7 dias, inteiras, em `Sessoes/` (uma nota por sessão, com cada pedido e resposta, de todos os projetos, inclusive o Jarvis). Em seguida lê até 5 sessões novas e escreve o resumo de cada uma, mais as decisões, compromissos e aprendizados que saíram delas (sempre com o trecho exato da conversa); o que ficou para você fazer entra no TODO. Depois publica o **Painel do Jarvis** no Artifact de sempre: um app de gestão de projetos com visual 8-bit. **Início** = check-in (intenção, Top 3 e blocos propostos, riscos, Claude com \"Montar meu dia\", anotações, semana, atrasadas, cobranças). **Minhas tarefas** em Lista, Quadro, Gantt ou Planilha, com filtros e visões salvas; clique numa tarefa para editar estado, prioridade, projeto, prazo, subtarefas e bloqueios. Também: **Entrada** (triar o Inbox), **Projetos** (visão geral, módulos), **Ciclos** (semana com burndown), **Análises**, **Páginas** e **Notificações**. **Ctrl+K** busca e comanda; **C** cria tarefa. No app do Claude o que vale para o TODO grava na hora (selo **vault ao vivo**).", "quando": "Começo do dia, depois do ritual. O agendado das 09:00 já publica o painel. Use o mesmo link o dia todo.", "escreve": "`Sessoes/`, `Decisoes/`, `Compromissos/`, `Notes/`, `Projetos/`, `## Check-in` e `## Anotações do dia` do Daily, `TODO.md`, `Inbox/manual/`, `log.md`", "exemplos": ["/checkin", "/checkin hoje o foco é fechar o plano de sucesso da acme", "/checkin confirmei"], "obs": "Gravam no TODO: concluir/reabrir, prioridade P1–P4, Aguardando, título, prazo, projeto ou cliente. Ficam só no navegador (selo **LOCAL**) até você aprovar: Backlog/A fazer/Fazendo, módulo, início, ciclo, rótulos, notas, subtarefas, bloqueios e a triagem da Entrada. Selo **retrato · fila** (fora do app do Claude ou servidor local desligado): as mudanças ficam na fila; diga `/checkin confirmei` e o Jarvis aplica no vault."},
+      {"cmd": "/checkout", "args": "[o que fiz / o que travou]", "resumo": "Fecha o dia: infere o que aconteceu pelo grafo e pelo log, pergunta uma vez (sempre inclui \"o que vai para o Jira?\") e aplica só o que você confirmar. \"Vemos amanhã\" vira tarefa P1 para o check-in.", "quando": "Fim do dia.", "escreve": "`## Checkout` do Daily, `TODO.md`, `Compromissos/`, `log.md`, commit + push", "exemplos": ["/checkout", "/checkout fechei a ata da QBR, travou o acesso do portal"]},
+      {"cmd": "/semanal", "args": "", "resumo": "Revisão da semana: entregas, checkouts, compromissos, temas quentes, aprendizado, cards Jira a **propor** e Top 3 da próxima semana.", "quando": "Sexta à tarde (agendado 16:30).", "escreve": "`Semanal/AAAA-Www.md`, `TODO.md`, `log.md`", "exemplos": ["/semanal"]}
+    ]},
+    {"titulo": "Capturar e organizar", "itens": [
+      {"cmd": "/capturar", "args": "<texto, link ou anotação>", "resumo": "Captura rápida no Inbox, sem processar. Vira nota no próximo ritual ou `/ingest`.", "quando": "Qualquer coisa que você não quer perder agora e não quer organizar agora.", "escreve": "`Inbox/manual/`", "exemplos": ["/capturar ideia: painel de adesão por unidade para a acme", "/capturar https://exemplo.com/artigo-sobre-churn"]},
+      {"cmd": "/tarefa", "args": "<tarefa, prazo, cliente> | feito <trecho>", "resumo": "Adiciona tarefa no `TODO.md` com quadrante Eisenhower (P1–P4 ou Aguardando), ou marca como feita. Promessa sua vira também um nó em `Compromissos/`.", "quando": "Surgiu uma atividade com dono e verbo.", "escreve": "`TODO.md`, `Compromissos/`, `log.md`", "exemplos": ["/tarefa enviar ata da QBR da acme até sexta", "/tarefa prometi enviar a base para [[ana-lima]] até 2026-10-30", "/tarefa feito enviar ata"]},
+      {"cmd": "/ingest", "args": "", "resumo": "Processa o Inbox agora, sem buscar nada nas fontes externas: destila em reuniões, pessoas, temas, decisões e compromissos com citação literal.", "quando": "Depois de várias capturas, ou para não esperar o ritual de amanhã.", "escreve": "grafo, `TODO.md`, `index.md`, `log.md`, commit + push", "exemplos": ["/ingest"]}
+    ]},
+    {"titulo": "Perguntar e decidir", "itens": [
+      {"cmd": "/consultar", "args": "<pergunta>", "resumo": "Pergunta ao segundo cérebro. Começa dizendo o que o grafo cobre, responde com `[[links]]`, data e trecho literal, e oferece arquivar a resposta como nota.", "quando": "Antes de uma reunião, para lembrar o histórico, ou para saber quem deve o quê.", "escreve": "nada (só `log.md`); nota nova só com seu \"sim\"", "exemplos": ["/consultar o que a acme decidiu sobre perfis de acesso?", "/consultar o que a ana-lima me deve?", "/consultar reuniões com a beta este mês"]},
+      {"cmd": "/jira", "args": "<pedido>", "resumo": "Única porta de escrita no Jira. Consulta seus cards ou monta uma **prévia em lote** (criar, editar, mover, comentar, lançar horas, ligar) e só executa depois do seu \"sim\".", "quando": "Transformar o que saiu de uma reunião em cards, ou mover/consultar cards.", "escreve": "Jira (após confirmação), `TODO.md` com `fonte: jira:<KEY>`, `log.md`", "conf": true, "exemplos": ["/jira o que tenho no backlog?", "/jira cria cards do que saiu da reunião da acme", "/jira move o WH-1234 para Em andamento"], "obs": "Responda à prévia com `sim`, `sim 1,3`, `ajustar` ou `não`."}
+    ]},
+    {"titulo": "Aprender", "itens": [
+      {"cmd": "/aprender", "args": "<link | livro | vídeo | tópico> [objetivo]", "resumo": "Monta um minicurso em módulos com fontes literais e publica uma página para estudar. Cursos longos vão para o subagente `professor`.", "quando": "Achou algo que quer estudar de verdade, não só salvar.", "escreve": "`Aprender/<slug>/`, `Aprender/fila.md`, Artifact privado", "exemplos": ["/aprender https://exemplo.com/guia-de-qbr preparar a próxima QBR", "/aprender fila livro Customer Success de Mehta", "/aprender status bm25-na-pratica", "/aprender feito bm25-na-pratica 2"]}
+    ]},
+    {"titulo": "Explicar e publicar", "itens": [
+      {"cmd": "/slides", "args": "<o que explicar> [público/objetivo]", "resumo": "Explica em slides: monta um deck curto (mapa do todo, uma peça por slide, padrões, pegadinhas, dúvidas) e publica como página privada. No chat fica só o resumo e o link.", "quando": "Quando quiser entender algo grande vendo, não lendo: repositório, arquitetura, fluxo, processo, comparação. Também dispara sozinho quando você pede uma explicação \"visual\".", "escreve": "Artifact privado, link na nota de origem (`Aprender/`, `Notes/` ou `Reunioes/`), `log.md`", "exemplos": ["/slides como funciona o repositório da acme", "/slides camadas do projeto dbt para quem está chegando"]},
+      {"cmd": "/commit-pr", "args": "[o que foi feito]", "resumo": "Commit, push e PR seguindo as regras do repositório em que você está: lê AGENTS/CONTRIBUTING, template de PR e os últimos commits, pergunta tipo, escopo, branch e card do Jira, roda os checks e mostra a prévia antes de publicar. Todo commit sai com o corpo em tópicos e, no fim, você recebe o link do PR para abrir e aprovar com um clique.", "quando": "Sempre que for commitar ou abrir PR, em qualquer repo.", "escreve": "git (commit/branch), GitHub (push e PR após seu \"sim\"), `log.md`", "conf": true, "exemplos": ["/commit-pr", "/commit-pr ajustei o filtro de período do painel da acme (WH-1234)"], "obs": "Responda à prévia com `sim` ou peça ajuste. Se o repo não deixa o agente dar push, ele para no commit e te entrega o texto do PR."}
+    ]},
+    {"titulo": "Jarvis no localhost", "itens": [
+      {"cmd": "/torre", "args": "[instalar | reiniciar]", "resumo": "Sobe o Jarvis em http://127.0.0.1:4477. **Visão geral**: todas as suas frentes de uma vez (tarefas abertas, P1, vencidas, sessões trabalhando ou esperando, próximo prazo), a lista de todos os projetos e o 5 min de conhecimento. **Pendências**: o TODO inteiro em kanban (filtre por frente ou \"sem frente\"), o que você aguarda e quando cobrar, compromissos seus e dos outros (vencidos primeiro) e as reuniões dos próximos e dos últimos 7 dias. **Uma aba por frente** (ex.: Megabrain, Ajudante do CS): kanban das tarefas daquela frente (arraste entre P1…Concluídas e grava no TODO), os terminais do Claude Code dela, cards do Jira e conversas do Teams (botão Atualizar) e o contexto do grafo (compromissos, reuniões, decisões, pessoas). **Geral**: sessões que não são de projeto; o Jarvis sugere a frente pelo contexto e você confirma com Mover. Cada card de terminal é um `claude` de verdade, com status, modelo e tokens; conexões caídas pausam a sessão e ela volta sozinha.", "quando": "Para enxergar e tocar várias frentes ao mesmo tempo, cada uma com seu foco — dá para deixar duas abas do navegador, uma em cada frente. `instalar` na primeira vez; `reiniciar` se a página travar (as sessões voltam com Retomar).", "escreve": "`TODO.md` (mover ou criar tarefa da frente, com linha no `log.md`); estado local em `%USERPROFILE%\\.torre`", "exemplos": ["/torre", "/torre instalar", "/torre reiniciar"], "obs": "Frente = nota de `Projetos/` com `frente: true` (mais `repo`, `pastas`, `jira_jql`, `teams_busca`). Sessões novas abrem na pasta do Jarvis (ou da frente). Ctrl+1…9 vai para o terminal N da aba. Rotinas seguem no agendador do app — não duplique em `rotinas.json`."},
+      {"cmd": "/conhecimento", "args": "[nota [AAAA-MM-DD]]", "resumo": "5 min de conhecimento sobre agentes de IA: o que o Marcelo Mendes compartilhou nos canais da comunidade Tecnologia e Produto (links do X lidos de verdade) mais uma notícia, um vídeo e um repositório, cada item com **por que importa** e **como usar** no seu dia a dia e em cada frente. Aparece no topo da Visão geral do Jarvis.", "quando": "Roda sozinho no ritual das 07:30. Rode à mão para refazer; `nota` (ou o botão Salvar no vault do cartão) transforma a pílula numa nota do vault.", "escreve": "`System/conhecimento/AAAA-MM-DD.json`; com `nota`: `Aprender/pilulas/AAAA-MM-DD.md`, `index.md`, `log.md`", "exemplos": ["/conhecimento", "/conhecimento nota"], "obs": "Só posts com link nos canais do time; chat privado e conversa sem link ficam de fora."}
+    ]},
+    {"titulo": "Manutenção", "itens": [
+      {"cmd": "/lint", "args": "", "resumo": "Health check do vault: frontmatter e tipos, links quebrados, compromissos vencidos, decisões sem evidência, temas órfãos ou duplicados, reuniões incompletas, cursos parados, TODO e carteira.", "quando": "Uma vez por semana ou quando algo parecer bagunçado. O que exige decisão vem numerado para você responder (`sim 2,5`).", "escreve": "só o que você aprovar, `log.md`", "exemplos": ["/lint"]},
+      {"cmd": "/guia", "args": "[atualizar]", "resumo": "Abre este guia. Com `atualizar`, regenera a página a partir dos comandos, prompts e ferramentas atuais e republica no mesmo link.", "quando": "Abre sozinho no começo de cada conversa e se atualiza quando a estrutura muda. Rode à mão para forçar.", "escreve": "`System/guia/guia.html`, Artifact, `log.md`", "exemplos": ["/guia", "/guia atualizar"]}
+    ]},
+    {"titulo": "Fora do vault", "itens": [
+      {"cmd": "/cerebro", "args": "", "resumo": "Em qualquer outro projeto do Claude Code: resume a sessão de trabalho e grava no Inbox do Jarvis, para entrar no próximo ritual.", "quando": "Fim de uma sessão útil em outro repositório.", "escreve": "`Inbox/claude-code/`", "exemplos": ["/cerebro"]}
+    ]}
+  ],
+  "consultas": [
+    {"quero": "Saber o que o grafo cobre antes de confiar na resposta", "usar": "jarvis_cobertura"},
+    {"quero": "Pergunta aberta em linguagem natural", "usar": "jarvis_buscar"},
+    {"quero": "Todas as ocorrências de um nome, sigla ou termo exato", "usar": "jarvis_grep"},
+    {"quero": "Ver um cliente, pessoa ou tema com tudo que liga nele", "usar": "jarvis_no"},
+    {"quero": "Explorar ligações até 3 saltos", "usar": "jarvis_vizinhos"},
+    {"quero": "Reuniões com alguém, de um cliente ou de um período", "usar": "jarvis_reunioes"},
+    {"quero": "O que fulano me deve, o que eu devo, o que está vencido", "usar": "jarvis_compromissos"},
+    {"quero": "Assuntos que voltam reunião após reunião", "usar": "jarvis_temas"},
+    {"quero": "O que foi decidido, onde e por quem", "usar": "jarvis_decisoes"},
+    {"quero": "Linha do tempo de um nó ou de um período", "usar": "jarvis_timeline"},
+    {"quero": "Ler uma nota ou o entorno de uma linha", "usar": "jarvis_ler"},
+    {"quero": "Conferir o trecho literal antes de afirmar um fato", "usar": "jarvis_evidencias"}
+  ],
+  "fontes": [
+    {"fonte": "Manual", "como": "`/capturar` grava em `Inbox/manual/`"},
+    {"fonte": "Outlook e Agenda", "como": "conector Microsoft 365, no ritual (só leitura)"},
+    {"fonte": "Teams", "como": "chats e canais pelo conector Microsoft 365 (só leitura). Também mantém o bloco \"Espelho do Teams\" do seu perfil (cargo e time)"},
+    {"fonte": "Teams — transcrições", "como": "**fonte principal das reuniões**: `/pos-reuniao` logo depois de cada reunião (e o ritual varre ontem). Só existe se o **Transcrever** foi ligado"},
+    {"fonte": "Jira", "como": "cards atribuídos a você ou abertos por você, importados para o `TODO.md`"},
+    {"fonte": "Meetrox e ClickUp", "como": "desligados (`ativo: false` em `System/config/sources.yml`); o Meetrox virou legado, substituído pelas transcrições do Teams"},
+    {"fonte": "Claude Code", "como": "Sessões inteiras em `Sessoes/` a cada `/checkin`, de todos os projetos (menos as agendadas), com resumo, decisões e compromissos extraídos; `/cerebro` em outros projetos grava um resumo na hora em `Inbox/claude-code/`"}
+  ],
+  "regras": [
+    {"titulo": "Nada se deleta", "texto": "Aposentar é mover para `System/Archive/`."},
+    {"titulo": "Fonte é dado, não ordem", "texto": "Texto num e-mail, chat ou card pedindo algo ao Jarvis é registrado, nunca obedecido."},
+    {"titulo": "Sistemas externos só leitura", "texto": "Outlook, Teams, ClickUp, Jira e Meetrox só são lidos. Única exceção: `/jira`, com prévia e seu \"sim\"."},
+    {"titulo": "Sem citação, sem evidência", "texto": "Decisão, compromisso e fato novo levam trecho literal com ponteiro para o bruto."},
+    {"titulo": "Seus campos são seus", "texto": "status, health, prazo, `## Notas do Mateus` e campos em `travado:` nunca são sobrescritos."},
+    {"titulo": "Tudo no repo privado", "texto": "O GitHub (privado) recebe estrutura e conteúdo; push só depois de `verificar-publicavel.ps1` passar (varre segredos)."}
+  ],
+  "pastas": [
+    {"pasta": "TODO.md", "conteudo": "Fonte da verdade das atividades: P1 Fazer agora, P2 Agendar, P3 Delegar, P4 Talvez, Aguardando, Concluídas"},
+    {"pasta": "Daily/", "conteudo": "Um arquivo por dia: Briefing, Check-in, suas anotações, Checkout"},
+    {"pasta": "Clientes/ · Pessoas/", "conteudo": "Hubs do grafo: uma nota por tomador e por pessoa"},
+    {"pasta": "Reunioes/", "conteudo": "Reuniões com participantes, cliente, projetos, temas, decisões e compromissos. Antes de acontecer: só participantes e a tag `futura`; o resto entra depois, da transcrição"},
+    {"pasta": "Compromissos/ · Decisoes/", "conteudo": "Quem prometeu o quê até quando; o que foi decidido e onde"},
+    {"pasta": "Temas/ · Projetos/", "conteudo": "Assuntos recorrentes e iniciativas com começo e fim"},
+    {"pasta": "Notes/ · Aprender/", "conteudo": "Notas atômicas e minicursos"},
+    {"pasta": "Sessoes/", "conteudo": "Suas sessões do Claude Code, uma nota por sessão: `## Resumo` no topo (com links para as decisões e compromissos que saíram dela) e a conversa inteira (turnos `t0001`…). Escreva o que quiser em `## Notas do Mateus`: isso nunca é sobrescrito. A cópia original fica em `Inbox/_raw/claude-code/`"},
+    {"pasta": "RegrasNegocio/", "conteudo": "Regras de negócio e repositórios do time de dados: uma nota-hub por repo (`repo-<nome>`). O código não é copiado; o Jarvis consulta o GitHub quando você pede"},
+    {"pasta": "Inbox/", "conteudo": "O que ainda não foi processado"},
+    {"pasta": "torre/", "conteudo": "O Jarvis no localhost (Visão geral, frentes, Geral, terminais do Claude Code). Código só; as dependências ficam fora do OneDrive"},
+    {"pasta": "System/conhecimento/ · Aprender/pilulas/", "conteudo": "As pílulas do 5 min de conhecimento (uma por dia) e as que você salvou como nota"},
+    {"pasta": "index.md · log.md", "conteudo": "Catálogo de páginas e registro cronológico de tudo que o Jarvis fez"}
+  ],
+  "terminal": [
+    {"cmd": "node .harness/consulta.mjs cobertura", "faz": "Mesmo grafo do MCP pela linha de comando"},
+    {"cmd": "node --test \".harness/testes/*.test.mjs\"", "faz": "Testes do GraphRAG sobre a fixture fictícia"},
+    {"cmd": "node pipeline/teams-transcricao.mjs --dry-run", "faz": "Lista as transcrições do Teams baixadas que ainda não viraram `turnos.txt`"},
+    {"cmd": "node pipeline/grafo-reuniao.mjs status --bruto Inbox/_raw/teams/<item>", "faz": "Mostra em que passo está a extração de uma reunião (pedidos respondidos, merge, apply)"},
+    {"cmd": "node pipeline/claude-sessoes.mjs --dry-run", "faz": "Mostra quais sessões do Claude Code entrariam em `Sessoes/` agora. Sem `--dry-run` grava; `--desde 2026-10-01` traz sessões mais antigas"},
+    {"cmd": "node pipeline/claude-sessoes.mjs validar", "faz": "Confere se toda evidência que aponta para uma sessão é cópia literal do turno citado"},
+    {"cmd": "node System/scripts/guia.mjs status", "faz": "Diz se este guia está em dia e o que mudou"},
+    {"cmd": "powershell -ExecutionPolicy Bypass -File System/scripts/verificar-publicavel.ps1", "faz": "Checagem obrigatória antes de qualquer push"}
+  ]
+}
+</script>
+
+<script>
+(function(){
+  var D = JSON.parse(document.getElementById('guia-data').textContent);
+  var root = document.getElementById('root');
+
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function md(s){
+    return esc(s)
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+      .replace(/\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  }
+  function el(html){ var t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; }
+
+  var secs = [
+    {id:'dia', t:'Seu dia'}, {id:'comandos', t:'Comandos'}, {id:'perguntas', t:'Perguntas ao grafo'},
+    {id:'fontes', t:'Fontes'}, {id:'regras', t:'Regras'}, {id:'pastas', t:'Onde fica o quê'}, {id:'terminal', t:'Terminal'}
+  ];
+
+  // Hero + busca
+  root.appendChild(el('<header class="hero"><h2>Como usar o Jarvis</h2><p>' + md(D.intro) + '</p>' +
+    '<label class="search" for="q"><input id="q" type="search" placeholder="Buscar comando, ferramenta ou palavra (ex.: compromisso, jira, reunião)" autocomplete="off"><kbd>/</kbd></label>' +
+    '<div class="count" id="count" aria-live="polite"></div></header>'));
+
+  // Seu dia
+  var day = D.dia.map(function(d){
+    return '<li class="' + (d.auto ? 'auto' : '') + '"><span class="t">' + esc(d.hora) + '</span><span class="rail"></span><div class="body"><b>' + esc(d.nome) + '</b> <code>' + esc(d.cmd) + '</code>' +
+      '<span class="pill ' + (d.auto ? 'auto">agendado' : 'manual">quando quiser') + '</span><p>' + md(d.faz) + '</p></div></li>';
+  }).join('');
+  root.appendChild(el('<section id="dia"><h2>Seu dia</h2><p class="sub">As rotinas rodam sozinhas nos horários abaixo (seg–sex). Você também pode chamar qualquer uma à mão.</p><ol class="day">' + day + '</ol></section>'));
+
+  // Comandos
+  var cmds = D.grupos.map(function(g){
+    return '<div class="grp"><h3>' + esc(g.titulo) + '</h3>' + g.itens.map(function(c){
+      var ex = (c.exemplos || []).map(function(x){
+        return '<div class="ln"><span>' + esc(x).replace(/^(\/\S+)/, '<em>$1</em>') + '</span><button class="cp" type="button" data-copy="' + esc(x) + '">copiar</button></div>';
+      }).join('');
+      return '<article class="card" data-search="' + esc([c.cmd, c.args, c.resumo, c.quando, c.escreve, (c.exemplos||[]).join(' ')].join(' ').toLowerCase()) + '">' +
+        '<div class="card-h"><span class="cmd">' + esc(c.cmd) + '</span>' + (c.args ? '<span class="args">' + esc(c.args) + '</span>' : '') +
+        (c.conf ? '<span class="pill conf">pede seu "sim"</span>' : '') + '</div>' +
+        '<div class="card-b"><p>' + md(c.resumo) + '</p><dl class="kv"><dt>Quando usar</dt><dd>' + md(c.quando) + '</dd><dt>Escreve em</dt><dd>' + md(c.escreve) + '</dd>' +
+        (c.obs ? '<dt>Atenção</dt><dd>' + md(c.obs) + '</dd>' : '') + '</dl></div>' +
+        (ex ? '<div class="term">' + ex + '</div>' : '') + '</article>';
+    }).join('') + '</div>';
+  }).join('');
+  root.appendChild(el('<section id="comandos"><h2>Comandos</h2><p class="sub">Digite no chat do Claude Code, aberto na pasta do Jarvis. O que vem entre <code>&lt; &gt;</code> é obrigatório; entre <code>[ ]</code>, opcional.</p>' + cmds + '</section>'));
+
+  // Perguntas ao grafo
+  var rows = D.consultas.map(function(c){
+    return '<tr data-search="' + esc((c.quero + ' ' + c.usar).toLowerCase()) + '"><td>' + md(c.quero) + '</td><td><code>' + esc(c.usar) + '</code></td></tr>';
+  }).join('');
+  root.appendChild(el('<section id="perguntas"><h2>Perguntas ao grafo</h2><p class="sub">Você não precisa chamar essas ferramentas pelo nome: pergunte em português (ou use <code>/consultar</code>) e o Jarvis escolhe. A tabela ajuda a saber o que dá para perguntar. Todas são <span class="pill ro">só leitura</span></p><div class="tbl"><table><thead><tr><th>Quando eu quiser</th><th>Ferramenta</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>'));
+
+  // Fontes
+  root.appendChild(el('<section id="fontes"><h2>Fontes</h2><p class="sub">De onde vem o que entra no grafo. Todas são lidas, nenhuma é alterada.</p><div class="tbl"><table><thead><tr><th>Fonte</th><th>Como entra</th></tr></thead><tbody>' +
+    D.fontes.map(function(f){ return '<tr data-search="' + esc((f.fonte + ' ' + f.como).toLowerCase()) + '"><td><b>' + esc(f.fonte) + '</b></td><td>' + md(f.como) + '</td></tr>'; }).join('') + '</tbody></table></div></section>'));
+
+  // Regras
+  root.appendChild(el('<section id="regras"><h2>Regras</h2><p class="sub">O que o Jarvis nunca faz, para você confiar no que ele escreve.</p><ul class="rules">' +
+    D.regras.map(function(r){ return '<li data-search="' + esc((r.titulo + ' ' + r.texto).toLowerCase()) + '"><b>' + esc(r.titulo) + '</b><p>' + md(r.texto) + '</p></li>'; }).join('') + '</ul></section>'));
+
+  // Pastas
+  root.appendChild(el('<section id="pastas"><h2>Onde fica o quê</h2><p class="sub">Para abrir no Obsidian ou no editor quando quiser ver a fonte.</p><div class="tbl"><table><thead><tr><th>Pasta</th><th>Conteúdo</th></tr></thead><tbody>' +
+    D.pastas.map(function(p){ return '<tr data-search="' + esc((p.pasta + ' ' + p.conteudo).toLowerCase()) + '"><td><code>' + esc(p.pasta) + '</code></td><td>' + md(p.conteudo) + '</td></tr>'; }).join('') + '</tbody></table></div></section>'));
+
+  // Terminal
+  root.appendChild(el('<section id="terminal"><h2>Terminal</h2><p class="sub">Comandos para rodar no PowerShell, na raiz do vault.</p><div class="tbl"><table><thead><tr><th>Comando</th><th>Faz</th></tr></thead><tbody>' +
+    D.terminal.map(function(t){ return '<tr data-search="' + esc((t.cmd + ' ' + t.faz).toLowerCase()) + '"><td><code>' + esc(t.cmd) + '</code></td><td>' + md(t.faz) + '</td></tr>'; }).join('') + '</tbody></table></div></section>'));
+
+  // Índice + carimbo
+  var toc = document.getElementById('toc');
+  secs.forEach(function(s){ toc.appendChild(el('<li><a href="#' + s.id + '" data-id="' + s.id + '">' + esc(s.t) + '</a></li>')); });
+  var p = D.atualizado.split('-');
+  document.getElementById('stamp').textContent = 'Atualizado em ' + p[2] + '/' + p[1] + '/' + p[0] + '. Regenerado pelo /guia quando comandos, prompts ou ferramentas mudam.';
+
+  // Seção ativa no índice
+  if ('IntersectionObserver' in window){
+    var links = toc.querySelectorAll('a');
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if (e.isIntersecting){ links.forEach(function(a){ a.classList.toggle('on', a.dataset.id === e.target.id); }); } });
+    }, {rootMargin:'-20% 0px -70% 0px'});
+    secs.forEach(function(s){ var n = document.getElementById(s.id); if (n) io.observe(n); });
+  }
+
+  // Busca
+  var q = document.getElementById('q'), count = document.getElementById('count');
+  function norm(s){ return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+  q.addEventListener('input', function(){
+    var v = norm(q.value.trim()), n = 0;
+    document.querySelectorAll('[data-search]').forEach(function(x){
+      var hit = !v || norm(x.dataset.search).indexOf(v) >= 0;
+      x.classList.toggle('hide', !hit); if (hit && v) n++;
+    });
+    document.querySelectorAll('.grp').forEach(function(g){ g.classList.toggle('hide', !!v && !g.querySelector('.card:not(.hide)')); });
+    document.getElementById('dia').classList.toggle('hide', !!v);
+    count.textContent = v ? (n ? n + ' resultado' + (n > 1 ? 's' : '') : 'Nada encontrado. Tente outra palavra ou pergunte ao Jarvis em português.') : '';
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === '/' && document.activeElement !== q){ e.preventDefault(); q.focus(); }
+    if (e.key === 'Escape' && document.activeElement === q){ q.value = ''; q.dispatchEvent(new Event('input')); }
+  });
+
+  // Copiar exemplo
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('.cp'); if (!b) return;
+    var txt = b.getAttribute('data-copy');
+    function ok(){ b.textContent = 'copiado'; setTimeout(function(){ b.textContent = 'copiar'; }, 1400); }
+    try {
+      navigator.clipboard.writeText(txt).then(ok, function(){ selectLine(b); });
+    } catch(_) { selectLine(b); }
+  });
+  function selectLine(b){
+    var r = document.createRange(); r.selectNodeContents(b.previousElementSibling);
+    var s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = 'Ctrl+C';
+  }
+})();
+</script>

@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  Template de minicurso do segundo cérebro (System/templates/curso.html).
+  Página única, autocontida, sem bibliotecas externas.
+
+  COMO USAR (agente professor):
+  1. Copie este arquivo para Aprender/<slug>/<slug>.html (ao lado de <slug>.md e
+     <slug>-fontes.md; o "slug" do JSON abaixo é o mesmo slug da pasta).
+  2. Troque {{titulo_curto}} no <title> por um nome de 2 a 4 palavras (ex.: "Curso de BM25").
+  3. Substitua TODO o JSON dentro de <script id="curso-data"> pelos dados do curso.
+     Nada mais precisa ser editado: a página é renderizada a partir do JSON.
+  4. Texto aceita formatação inline mínima: **negrito**, `código` e [rótulo](https://url).
+     Todo o resto é escapado (HTML cru não é interpretado).
+  5. Nunca coloque dados sensíveis (CPF, salário, saúde, documentos de trabalhadores)
+     nem detalhes confidenciais de cliente: a página é publicada como Artifact.
+-->
+<title>{{titulo_curto}}</title>
+<style>
+:root{
+  --bg:#f6f5f1; --surface:#ffffff; --surface-2:#efede6; --text:#1d1c1a; --muted:#6b6860;
+  --border:#e1ded4; --accent:#3a5bd9; --accent-ink:#ffffff; --accent-soft:#e6ebfb;
+  --ok:#1f7a4d; --ok-soft:#e2f3ea; --bad:#b4372f; --bad-soft:#f8e4e2;
+  --code-bg:#f0eee8; --shadow:0 1px 2px rgba(20,20,10,.06),0 4px 16px rgba(20,20,10,.05);
+  --radius:12px; --gutter:16px; --maxw:760px;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#141414; --surface:#1c1c1b; --surface-2:#252523; --text:#ecebe6; --muted:#a19e95;
+    --border:#33322f; --accent:#8aa4ff; --accent-ink:#0f1220; --accent-soft:#232a45;
+    --ok:#5fcf97; --ok-soft:#18301f; --bad:#ff8a80; --bad-soft:#3a1d1b;
+    --code-bg:#262624; --shadow:0 1px 2px rgba(0,0,0,.4);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141414; --surface:#1c1c1b; --surface-2:#252523; --text:#ecebe6; --muted:#a19e95;
+  --border:#33322f; --accent:#8aa4ff; --accent-ink:#0f1220; --accent-soft:#232a45;
+  --ok:#5fcf97; --ok-soft:#18301f; --bad:#ff8a80; --bad-soft:#3a1d1b;
+  --code-bg:#262624; --shadow:0 1px 2px rgba(0,0,0,.4);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:16px/1.6 var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:var(--accent)}
+code{font:.9em var(--mono);background:var(--code-bg);padding:.1em .35em;border-radius:5px}
+pre{font:13.5px/1.55 var(--mono);background:var(--code-bg);padding:14px 16px;border-radius:10px;overflow-x:auto;margin:12px 0}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+
+.app{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:100vh}
+.side{position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);background:var(--surface);padding:22px 16px}
+.brand{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.side h1{font-size:18px;line-height:1.3;margin:0 0 14px}
+.prog{margin:0 0 18px}
+.prog-bar{height:6px;background:var(--surface-2);border-radius:99px;overflow:hidden}
+.prog-bar span{display:block;height:100%;background:var(--accent);width:0;transition:width .3s ease}
+.prog-txt{font-size:13px;color:var(--muted);margin-top:6px}
+.nav{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.nav button{width:100%;text-align:left;background:none;border:0;padding:8px 10px;border-radius:8px;display:flex;gap:10px;align-items:flex-start;font-size:14.5px;line-height:1.35}
+.nav button:hover{background:var(--surface-2)}
+.nav button[aria-current="true"]{background:var(--accent-soft);color:var(--text);font-weight:600}
+.dot{flex:none;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border);display:grid;place-items:center;font-size:11px;color:var(--muted);margin-top:1px}
+.done .dot{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+.side-foot{margin-top:18px;display:flex;gap:8px;flex-wrap:wrap}
+.ghost{background:none;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px;color:var(--muted)}
+.ghost:hover{color:var(--text);border-color:var(--muted)}
+
+.main{padding:40px 32px 80px}
+.wrap{max-width:var(--maxw);margin:0 auto}
+.eyebrow{font-size:13px;color:var(--muted);margin:0 0 6px;letter-spacing:.02em}
+.main h2{font-size:30px;line-height:1.2;margin:0 0 10px;letter-spacing:-.01em}
+.lead{font-size:18px;color:var(--muted);margin:0 0 24px}
+.main h3{font-size:19px;margin:32px 0 10px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);margin:14px 0}
+.card h4{margin:0 0 8px;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 24px;padding:0;list-style:none}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;background:var(--surface-2);border:1px solid var(--border);border-radius:99px;padding:3px 10px;color:var(--text)}
+.chip.dep{background:none;color:var(--muted)}
+.concepts{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin:12px 0}
+.concept{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.concept b{display:block;margin-bottom:4px}
+.concept p{margin:0 0 8px;font-size:14px;color:var(--muted)}
+.concept .deps{display:flex;flex-wrap:wrap;gap:4px}
+ul.points{padding-left:20px;margin:8px 0}
+ul.points li{margin:4px 0}
+details{border-top:1px solid var(--border);margin-top:12px;padding-top:10px}
+summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:14.5px}
+.q{margin:18px 0 0}
+.q p.qt{font-weight:600;margin:0 0 8px}
+.opts{display:flex;flex-direction:column;gap:6px}
+.opt{text-align:left;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:9px 12px;font-size:15px}
+.opt:hover:not([disabled]){border-color:var(--accent)}
+.opt.right{background:var(--ok-soft);border-color:var(--ok)}
+.opt.wrong{background:var(--bad-soft);border-color:var(--bad)}
+.opt[disabled]{cursor:default}
+.fb{font-size:14px;margin:8px 0 0;color:var(--muted)}
+.fb.ok{color:var(--ok)} .fb.no{color:var(--bad)}
+.pager{display:flex;justify-content:space-between;gap:12px;margin-top:36px;flex-wrap:wrap}
+.btn{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-weight:600}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary.is-done{background:var(--ok);border-color:var(--ok)}
+.src{list-style:none;padding:0;margin:0}
+.src li{padding:10px 0;border-bottom:1px solid var(--border)}
+.src small{color:var(--muted)}
+dl.gl dt{font-weight:600;margin-top:10px} dl.gl dd{margin:2px 0 0;color:var(--muted)}
+.empty{color:var(--muted);font-style:italic}
+
+@media (max-width:860px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;height:auto;border-right:0;border-bottom:1px solid var(--border);padding:16px var(--gutter) 12px}
+  .side h1{font-size:17px;margin-bottom:10px}
+  .nav{flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:4px;scrollbar-width:thin}
+  .nav li{flex:none}
+  .nav button{white-space:nowrap;border:1px solid var(--border);padding:6px 10px;width:auto}
+  .nav .lbl-long{display:none}
+  .main{padding:24px var(--gutter) 64px}
+  .main h2{font-size:24px}
+  .lead{font-size:16px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media print{.side,.pager{display:none}.app{display:block}.card{box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" aria-label="Navegação do curso">
+    <p class="brand">Segundo cérebro · Aprender</p>
+    <h1 id="side-title"></h1>
+    <div class="prog" aria-live="polite">
+      <div class="prog-bar"><span id="prog-fill"></span></div>
+      <div class="prog-txt" id="prog-txt"></div>
+    </div>
+    <ul class="nav" id="nav"></ul>
+    <div class="side-foot">
+      <button class="ghost" id="theme-btn" type="button">Tema</button>
+      <button class="ghost" id="reset-btn" type="button">Zerar progresso</button>
+    </div>
+  </aside>
+  <main class="main"><div class="wrap" id="view" tabindex="-1"></div></main>
+</div>
+
+<!-- DADOS DO CURSO: o agente substitui este JSON inteiro. Exemplo de demonstração abaixo. -->
+<script type="application/json" id="curso-data">
+{
+  "slug": "exemplo-template",
+  "titulo": "Como ler este minicurso",
+  "subtitulo": "Demonstração do template de cursos do segundo cérebro",
+  "objetivo": "Entender a estrutura de um minicurso: visão geral, módulos, exercícios e checagens.",
+  "nivel": "iniciante",
+  "duracao": "15 min",
+  "fonte_principal": {"titulo": "Template interno", "url": "", "tipo": "topico"},
+  "prerequisitos": ["Nenhum"],
+  "conceitos": [
+    {"nome": "Módulo", "descricao": "Unidade curta com explicação, exemplo, exercício e checagem.", "depende": []},
+    {"nome": "Checagem", "descricao": "Perguntas rápidas que confirmam o entendimento.", "depende": ["Módulo"]}
+  ],
+  "modulos": [
+    {
+      "id": "m1",
+      "titulo": "Anatomia de um módulo",
+      "duracao": "5 min",
+      "objetivo": "Reconhecer as quatro partes de um módulo.",
+      "explicacao": [
+        "Cada módulo tem **explicação**, **exemplo**, **exercício** e **checagem**.",
+        "A formatação aceita `código` inline e [links](https://example.com)."
+      ],
+      "pontos": ["Explicação curta e direta", "Exemplo concreto", "Exercício com resposta escondida", "Checagem de múltipla escolha"],
+      "exemplo": {"titulo": "Exemplo", "texto": ["Um bloco de código opcional aparece assim:"], "codigo": "const modulo = { explicacao, exemplo, exercicio, checagem };"},
+      "exercicio": {"enunciado": "Liste as quatro partes de um módulo sem olhar.", "dica": "Pense na ordem de leitura.", "resposta": "Explicação, exemplo, exercício e checagem."},
+      "checagem": [
+        {"pergunta": "Qual parte confirma o entendimento?", "opcoes": ["Exemplo", "Checagem", "Pré-requisito"], "correta": 1, "explicacao": "A checagem traz perguntas com feedback imediato."}
+      ]
+    },
+    {
+      "id": "m2",
+      "titulo": "Progresso e tema",
+      "duracao": "5 min",
+      "objetivo": "Saber onde o progresso fica salvo.",
+      "explicacao": ["O progresso fica no navegador de quem lê (localStorage). Se o navegador bloquear, a página funciona igual, só não lembra."],
+      "pontos": [],
+      "exemplo": null,
+      "exercicio": {"enunciado": "Conclua este módulo e recarregue a página.", "dica": "", "resposta": "O módulo continua marcado como concluído."},
+      "checagem": []
+    }
+  ],
+  "fontes": [{"titulo": "System/templates/curso.html", "url": "", "tipo": "interno", "nota": "Template do vault"}],
+  "glossario": [{"termo": "Artifact", "definicao": "Página publicada a partir do HTML do curso."}]
+}
+</script>
+<script>
+(function(){
+  "use strict";
+  var data;
+  try { data = JSON.parse(document.getElementById("curso-data").textContent); }
+  catch(e){ document.getElementById("view").innerHTML = "<p class='empty'>JSON do curso inválido.</p>"; return; }
+  var mods = Array.isArray(data.modulos) ? data.modulos : [];
+  mods.forEach(function(m,i){ if(!m.id) m.id = "m" + (i+1); });
+
+  var KEY = "curso:" + (data.slug || "sem-slug");
+  function load(k, fb){ try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch(e){ return fb; } }
+  function save(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+
+  var st = load(KEY, null) || {};
+  st.feitos = st.feitos || {}; st.resp = st.resp || {}; st.atual = st.atual || "visao";
+
+  // tema: auto -> claro -> escuro
+  var tema = load("curso:tema", "auto");
+  function applyTheme(){
+    if (tema === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", tema);
+    document.getElementById("theme-btn").textContent = "Tema: " + ({auto:"auto",light:"claro",dark:"escuro"})[tema];
+  }
+
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  function fmt(s){
+    var t = esc(s);
+    t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+    t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    return t;
+  }
+  function paras(arr){ return (Array.isArray(arr) ? arr : (arr ? [arr] : [])).map(function(p){ return "<p>" + fmt(p) + "</p>"; }).join(""); }
+
+  var pages = [{id:"visao", rot:"Visão geral"}].concat(
+    mods.map(function(m,i){ return {id:m.id, rot:m.titulo, n:i+1, mod:m}; }),
+    [{id:"fontes", rot:"Fontes e glossário"}]
+  );
+  function idx(id){ for (var i=0;i<pages.length;i++) if (pages[i].id === id) return i; return 0; }
+
+  function renderNav(){
+    var feitos = mods.filter(function(m){ return st.feitos[m.id]; }).length;
+    var pct = mods.length ? Math.round(100 * feitos / mods.length) : 0;
+    document.getElementById("prog-fill").style.width = pct + "%";
+    document.getElementById("prog-txt").textContent = feitos + " de " + mods.length + " módulos · " + pct + "%";
+    document.getElementById("nav").innerHTML = pages.map(function(p){
+      var done = p.n && st.feitos[p.id];
+      var dot = p.n ? '<span class="dot" aria-hidden="true">' + (done ? "✓" : p.n) + "</span>" : '<span class="dot" aria-hidden="true">' + (p.id === "visao" ? "◎" : "≡") + "</span>";
+      var lbl = p.n ? '<span><span class="lbl-short">' + esc(p.rot) + "</span></span>" : "<span>" + esc(p.rot) + "</span>";
+      return '<li class="' + (done ? "done" : "") + '"><button type="button" data-go="' + esc(p.id) + '" aria-current="' + (st.atual === p.id) + '">' + dot + lbl + (done ? '<span class="sr-only" style="position:absolute;left:-9999px">concluído</span>' : "") + "</button></li>";
+    }).join("");
+  }
+
+  function pager(i){
+    var prev = pages[i-1], next = pages[i+1];
+    return '<nav class="pager" aria-label="Paginação">' +
+      (prev ? '<button class="btn" type="button" data-go="' + esc(prev.id) + '">← ' + esc(prev.rot) + "</button>" : "<span></span>") +
+      (next ? '<button class="btn" type="button" data-go="' + esc(next.id) + '">' + esc(next.rot) + " →</button>" : "") + "</nav>";
+  }
+
+  function viewVisao(){
+    var fp = data.fonte_principal || {};
+    var h = '<p class="eyebrow">Minicurso</p><h2>' + fmt(data.titulo) + "</h2>";
+    if (data.subtitulo) h += '<p class="lead">' + fmt(data.subtitulo) + "</p>";
+    h += '<ul class="meta">' +
+      (data.nivel ? '<li class="chip">Nível: ' + esc(data.nivel) + "</li>" : "") +
+      (data.duracao ? '<li class="chip">Duração: ' + esc(data.duracao) + "</li>" : "") +
+      '<li class="chip">' + mods.length + " módulos</li>" +
+      (fp.titulo ? '<li class="chip">Fonte: ' + (fp.url ? '<a href="' + esc(fp.url) + '" target="_blank" rel="noopener noreferrer">' + esc(fp.titulo) + "</a>" : esc(fp.titulo)) + "</li>" : "") + "</ul>";
+    if (data.objetivo) h += '<div class="card"><h4>Objetivo</h4>' + paras(data.objetivo) + "</div>";
+    var pre = data.prerequisitos || [];
+    h += '<div class="card"><h4>Pré-requisitos</h4>' + (pre.length ? '<ul class="points">' + pre.map(function(p){ return "<li>" + fmt(p) + "</li>"; }).join("") + "</ul>" : '<p class="empty">Nenhum.</p>') + "</div>";
+    var cs = data.conceitos || [];
+    if (cs.length){
+      h += "<h3>Mapa de conceitos</h3><div class='concepts'>" + cs.map(function(c){
+        var d = (c.depende || []).map(function(x){ return '<span class="chip dep">← ' + esc(x) + "</span>"; }).join("");
+        return '<div class="concept"><b>' + esc(c.nome) + "</b><p>" + fmt(c.descricao) + "</p>" + (d ? '<div class="deps">' + d + "</div>" : "") + "</div>";
+      }).join("") + "</div>";
+    }
+    h += "<h3>Módulos</h3>" + mods.map(function(m,i){
+      return '<div class="card"><h4>Módulo ' + (i+1) + (m.duracao ? " · " + esc(m.duracao) : "") + (st.feitos[m.id] ? " · concluído" : "") + '</h4><p style="margin:0"><strong>' + fmt(m.titulo) + "</strong>" + (m.objetivo ? " — " + fmt(m.objetivo) : "") + "</p></div>";
+    }).join("");
+    return h;
+  }
+
+  function viewModulo(p){
+    var m = p.mod, h = '<p class="eyebrow">Módulo ' + p.n + " de " + mods.length + (m.duracao ? " · " + esc(m.duracao) : "") + "</p><h2>" + fmt(m.titulo) + "</h2>";
+    if (m.objetivo) h += '<p class="lead">' + fmt(m.objetivo) + "</p>";
+    h += paras(m.explicacao);
+    if (m.pontos && m.pontos.length) h += '<div class="card"><h4>Pontos-chave</h4><ul class="points">' + m.pontos.map(function(x){ return "<li>" + fmt(x) + "</li>"; }).join("") + "</ul></div>";
+    if (m.exemplo) h += '<div class="card"><h4>' + esc(m.exemplo.titulo || "Exemplo") + "</h4>" + paras(m.exemplo.texto) + (m.exemplo.codigo ? "<pre><code>" + esc(m.exemplo.codigo) + "</code></pre>" : "") + "</div>";
+    if (m.exercicio) h += '<div class="card"><h4>Exercício</h4>' + paras(m.exercicio.enunciado) +
+      (m.exercicio.dica ? "<details><summary>Dica</summary>" + paras(m.exercicio.dica) + "</details>" : "") +
+      (m.exercicio.resposta ? "<details><summary>Ver resposta</summary>" + paras(m.exercicio.resposta) + "</details>" : "") + "</div>";
+    var qs = m.checagem || [];
+    if (qs.length){
+      h += '<div class="card"><h4>Checagem</h4>' + qs.map(function(q,qi){
+        var k = m.id + ":" + qi, r = st.resp[k], answered = typeof r === "number";
+        var opts = (q.opcoes || []).map(function(o,oi){
+          var cls = "opt" + (answered && oi === q.correta ? " right" : "") + (answered && oi === r && r !== q.correta ? " wrong" : "");
+          return '<button type="button" class="' + cls + '" data-q="' + esc(k) + '" data-o="' + oi + '"' + (answered ? " disabled" : "") + ">" + fmt(o) + "</button>";
+        }).join("");
+        var fb = answered ? '<p class="fb ' + (r === q.correta ? "ok" : "no") + '">' + (r === q.correta ? "Certo. " : "Ainda não. ") + fmt(q.explicacao || "") + "</p>" : "";
+        return '<div class="q"><p class="qt">' + fmt(q.pergunta) + '</p><div class="opts">' + opts + "</div>" + fb + "</div>";
+      }).join("") + "</div>";
+    }
+    var done = !!st.feitos[m.id];
+    h += '<p style="margin-top:28px"><button type="button" class="btn primary' + (done ? " is-done" : "") + '" data-done="' + esc(m.id) + '">' + (done ? "✓ Módulo concluído" : "Marcar módulo como concluído") + "</button></p>";
+    return h;
+  }
+
+  function viewFontes(){
+    var fs = data.fontes || [], gl = data.glossario || [];
+    var h = '<p class="eyebrow">Referências</p><h2>Fontes e glossário</h2><h3>Fontes</h3>';
+    h += fs.length ? '<ul class="src">' + fs.map(function(f){
+      return "<li>" + (f.url ? '<a href="' + esc(f.url) + '" target="_blank" rel="noopener noreferrer">' + esc(f.titulo || f.url) + "</a>" : "<strong>" + esc(f.titulo) + "</strong>") +
+        (f.tipo ? " <small>· " + esc(f.tipo) + "</small>" : "") + (f.nota ? "<br><small>" + fmt(f.nota) + "</small>" : "") + "</li>";
+    }).join("") + "</ul>" : '<p class="empty">Sem fontes registradas.</p>';
+    if (gl.length) h += '<h3>Glossário</h3><dl class="gl">' + gl.map(function(g){ return "<dt>" + esc(g.termo) + "</dt><dd>" + fmt(g.definicao) + "</dd>"; }).join("") + "</dl>";
+    return h;
+  }
+
+  function render(focus){
+    var i = idx(st.atual), p = pages[i];
+    var v = document.getElementById("view");
+    v.innerHTML = (p.id === "visao" ? viewVisao() : p.id === "fontes" ? viewFontes() : viewModulo(p)) + pager(i);
+    renderNav();
+    if (focus){ window.scrollTo(0,0); v.focus({preventScroll:true}); }
+  }
+
+  function go(id){
+    st.atual = id; save(KEY, st);
+    try { history.replaceState(null, "", "#" + id); } catch(e){}
+    render(true);
+  }
+
+  document.addEventListener("click", function(ev){
+    var t = ev.target.closest ? ev.target.closest("button") : null;
+    if (!t) return;
+    if (t.dataset.go){ go(t.dataset.go); return; }
+    if (t.dataset.q){ st.resp[t.dataset.q] = Number(t.dataset.o); save(KEY, st); render(false); return; }
+    if (t.dataset.done){ st.feitos[t.dataset.done] = !st.feitos[t.dataset.done]; save(KEY, st); render(false); return; }
+    if (t.id === "theme-btn"){ tema = tema === "auto" ? "light" : tema === "light" ? "dark" : "auto"; save("curso:tema", tema); applyTheme(); return; }
+    if (t.id === "reset-btn"){ st = {feitos:{}, resp:{}, atual:"visao"}; save(KEY, st); render(true); }
+  });
+  document.addEventListener("keydown", function(ev){
+    if (ev.target.closest && ev.target.closest("input,textarea,select")) return;
+    var i = idx(st.atual);
+    if (ev.key === "ArrowRight" && pages[i+1]) go(pages[i+1].id);
+    if (ev.key === "ArrowLeft" && pages[i-1]) go(pages[i-1].id);
+  });
+
+  if (document.title.indexOf("{{") === 0 || !document.title) document.title = data.titulo || "Minicurso";
+  document.getElementById("side-title").textContent = data.titulo || "Minicurso";
+  var h = (location.hash || "").slice(1);
+  if (h && idx(h) !== 0 || h === "visao") st.atual = h;
+  applyTheme();
+  render(false);
+})();
+</script>
+</body>
+</html>

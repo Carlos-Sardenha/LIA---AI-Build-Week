@@ -1,0 +1,29 @@
+{
+  "name": "torre",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Torre de controle: várias sessões do Claude Code numa página só",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/server/index.ts",
+    "dev": "tsx watch --ignore public src/server/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node teste/conexoes.test.mjs && node teste/rotinas.test.mjs && node teste/frentes.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "esbuild": "^0.28.2",
+    "node-pty": "^1.1.0",
+    "tsx": "^4.23.15",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/ws": "^8.18.2",
+    "typescript": "^7.0.2"
+  }
+}

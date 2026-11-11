@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Jarvis">
+  <defs>
+    <linearGradient id="jv-g" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b7a4f5"/>
+      <stop offset=".55" stop-color="#94c4f2"/>
+      <stop offset="1" stop-color="#8fd9b0"/>
+    </linearGradient>
+    <radialGradient id="jv-core" cx="32" cy="31" r="17" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c9baff" stop-opacity=".42"/>
+      <stop offset=".7" stop-color="#94c4f2" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#94c4f2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- núcleo -->
+  <circle cx="32" cy="32" r="17" fill="url(#jv-core)"/>
+  <!-- anel externo, aberto em dois pontos -->
+  <path d="M32 4a28 28 0 0 1 26.3 18.4" stroke="url(#jv-g)" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M59.4 37.5A28 28 0 0 1 9.9 49.2" stroke="url(#jv-g)" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M5.8 41.6A28 28 0 0 1 24.6 5" stroke="url(#jv-g)" stroke-width="2.6" stroke-linecap="round" opacity=".75"/>
+  <!-- órbita inclinada -->
+  <ellipse cx="32" cy="32" rx="27" ry="10" transform="rotate(-28 32 32)" stroke="url(#jv-g)" stroke-width="1.4" opacity=".5"/>
+  <!-- núcleo abstrato: anel interno + esfera luminosa -->
+  <circle cx="32" cy="32" r="12" stroke="url(#jv-g)" stroke-width="3" stroke-dasharray="14.35 4.5" stroke-linecap="round" transform="rotate(-20 32 32)"/>
+  <circle cx="32" cy="32" r="6.5" fill="url(#jv-g)"/>
+  <circle cx="30" cy="30" r="2.2" fill="#ffffff" opacity=".55"/>
+  <!-- satélite -->
+  <circle cx="55.8" cy="19.3" r="3.4" fill="#8fd9b0"/>
+  <circle cx="9.6" cy="45.2" r="1.8" fill="#b7a4f5"/>
+</svg>

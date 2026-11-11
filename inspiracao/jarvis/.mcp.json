@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "jarvis": {
+      "type": "stdio",
+      "command": "node",
+      "args": [".harness/mcp.mjs"]
+    },
+    "jarvis-escrita": {
+      "type": "stdio",
+      "command": "node",
+      "args": [".harness/escrita.mjs"]
+    }
+  }
+}

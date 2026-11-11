@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+// `op` das sessões da Torre (macOS, Linux e Git Bash no Windows). A lógica fica em
+// op-intermediario.mjs, a mesma que o op.cmd usa no PowerShell/cmd.
+import './op-intermediario.mjs';

@@ -1,0 +1,13 @@
+{
+  "name": "jarvis-harness",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GraphRAG do segundo cérebro: servidor MCP stdio (jarvis) + CLI, só leitura, zero dependências",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test \"testes/*.test.mjs\"",
+    "mcp": "node mcp.mjs",
+    "cobertura": "node consulta.mjs cobertura"
+  }
+}

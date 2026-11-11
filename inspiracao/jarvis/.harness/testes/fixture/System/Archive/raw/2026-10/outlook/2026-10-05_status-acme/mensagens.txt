@@ -1,0 +1,7 @@
+[msg-0001] 2026-10-05 09:12 Ana Lima:
+Oi Bruno, consegue revisar os perfis da acme?
+Preciso disso para o portal.
+
+[msg-0002] 2026-10-05 10:40 Bruno Souza:
+Consigo revisar os perfis ate dia 25.
+Veja [o guia](https://exemplo.invalid) antes.

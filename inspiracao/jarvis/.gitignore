@@ -1,0 +1,32 @@
+# .gitignore do Jarvis (segundo cerebro)
+#
+# Politica (desde 2026-11-05): o repositorio (GitHub, PRIVADO) guarda ESTRUTURA e
+# CONTEUDO — wiki, TODO, Inbox, brutos, arquivo, estado. Fica de fora so o que e
+# segredo, cache ou estado local de ferramenta. Antes de qualquer push:
+# System/scripts/verificar-publicavel.ps1 (varre segredos).
+
+# --- Segredos ---------------------------------------------------------------
+.env
+.env.*
+*.env
+!.env.example
+*.pem
+*.key
+secrets/
+
+# --- Dependencias, build e caches ------------------------------------------
+node_modules/
+.npm/
+*.log
+coverage/
+
+# --- Ferramentas locais -----------------------------------------------------
+.claude/settings.local.json
+.claude/worktrees/
+.obsidian/workspace*.json
+.obsidian/cache
+.trash/
+*.tmp
+Thumbs.db
+desktop.ini
+.DS_Store

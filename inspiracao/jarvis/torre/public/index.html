@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark" data-palette="pastel">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/build/app.css">
+<link rel="stylesheet" href="/style.css">
+<script>
+window.TORRE_TOKEN = "__TORRE_TOKEN__";
+// Aplica a aparência salva antes de pintar, para não piscar.
+try {
+  // v2: o padrão virou escuro pastel; a escolha antiga (v1) não vale mais.
+  var pref = JSON.parse(localStorage.getItem('torre.appearance.v2') || '{}');
+  if (pref.theme) document.documentElement.dataset.theme = pref.theme;
+  if (pref.palette) document.documentElement.dataset.palette = pref.palette;
+} catch (e) {}
+</script>
+<script type="module" src="/build/app.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo"><img src="/logo.svg" width="30" height="30" alt=""></span>
+    <div>
+      <strong>Jarvis</strong>
+      <span id="subtitle" class="muted">conectando…</span>
+    </div>
+  </div>
+  <div id="counts" class="counts"></div>
+  <div class="spacer"></div>
+  <div class="seg" role="group" aria-label="Disposição" id="layout-seg">
+    <button type="button" data-layout="grade" class="on">Grade</button>
+    <button type="button" data-layout="foco">Foco</button>
+  </div>
+  <button type="button" id="top-new" class="btn primary" title="Abrir uma nova sessão do Claude Code">+ Nova sessão</button>
+  <button type="button" id="import" class="btn">Importar terminais</button>
+  <button type="button" id="notify" class="btn ghost">Ativar notificações</button>
+  <div class="conexoes" aria-label="Conexões">
+    <span class="muted">Conexões</span>
+    <div id="conexoes" class="cx-list"></div>
+    <button type="button" id="cx-validar" class="btn ghost" title="Checar todas as conexões agora">Validar agora</button>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="Frentes">
+  <div class="tabs-row" id="tabs" role="tablist"></div>
+  <span class="tabs-ind" id="tabs-ind" aria-hidden="true"></span>
+</nav>
+
+<section class="usage" aria-label="Uso de tokens">
+  <div class="tile"><span class="muted">Tokens nas sessões do Jarvis</span><b id="u-total">0</b><span class="mono muted" id="u-split">↓ 0 · ↑ 0</span></div>
+  <div class="tile"><span class="muted">Lido do cache</span><b id="u-cache">0%</b><span class="muted">da entrada veio do cache de prompt</span></div>
+  <div class="tile"><span class="muted">Por modelo</span><div id="u-models" class="models"></div></div>
+</section>
+
+<div class="layout">
+<aside class="side" id="side" aria-label="Terminais">
+  <button type="button" class="side-toggle" id="side-toggle" aria-controls="side" aria-expanded="true" title="Recolher a barra lateral">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+  </button>
+  <div class="side-total">
+    <span class="muted">Terminais abertos</span>
+    <b id="side-open">0</b>
+    <span class="muted" id="side-of">de 0 sessões</span>
+  </div>
+  <ul class="side-status" id="side-status"></ul>
+  <nav class="side-list" aria-label="Lista de terminais">
+    <ul id="side-list"></ul>
+  </nav>
+  <details class="settings">
+    <summary>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Configurações
+    </summary>
+    <div class="settings-body">
+      <span class="label">Tema</span>
+      <div class="seg" role="group" aria-label="Tema">
+        <button type="button" data-theme-opt="dark">Escuro</button>
+        <button type="button" data-theme-opt="light">Claro</button>
+      </div>
+      <span class="label">Ampliar</span>
+      <div class="seg seg-stack" role="group" aria-label="Como o terminal ampliado aparece">
+        <button type="button" data-ampliar-opt="janela">Terminal ocupa a janela</button>
+        <button type="button" data-ampliar-opt="coluna">Com os outros em coluna</button>
+      </div>
+      <span class="label">Cores</span>
+      <div class="seg seg-stack" role="group" aria-label="Paleta de cores">
+        <button type="button" data-palette-opt="pastel"><span class="swatch" style="background:conic-gradient(#b7a4f5,#94c4f2,#8fd9b0,#f2c48d,#f4a9cb,#b7a4f5)"></span>Pastel</button>
+        <button type="button" data-palette-opt="wehandle"><span class="swatch" style="background:#d94c93"></span>WeHandle</button>
+        <button type="button" data-palette-opt="matrix"><span class="swatch" style="background:#22c55e"></span>Verde e preto</button>
+        <button type="button" data-palette-opt="colorido"><span class="swatch" style="background:conic-gradient(#8b5cf6,#06b6d4,#f59e0b,#ec4899,#8b5cf6)"></span>Colorido</button>
+      </div>
+    </div>
+  </details>
+</aside>
+<main id="main">
+<section id="view-visao" class="view visao" aria-label="Visão geral" hidden>
+  <header class="visao-head">
+    <h1>Visão geral</h1>
+    <span class="muted" id="visao-sub"></span>
+  </header>
+  <div id="conhecimento" class="conhecimento" aria-label="5 min de conhecimento"></div>
+  <div id="visao-grid" class="visao-grid"></div>
+  <section id="visao-projetos" class="visao-projetos" aria-label="Projetos"></section>
+</section>
+
+<section id="pend-head" class="view frente-head pend-head" aria-label="Pendências" hidden>
+  <div id="pend-cab"></div>
+  <div id="pend-kanban" class="kanban" aria-label="Todas as tarefas" hidden></div>
+</section>
+
+<aside id="pend-aside" class="frente-aside" aria-label="Aguardando, compromissos e agenda" hidden></aside>
+
+<section id="frente-head" class="view frente-head" aria-label="Frente" hidden>
+  <div id="fh-cab"></div>
+  <div id="kanban" class="kanban" aria-label="Tarefas da frente" hidden></div>
+</section>
+
+<aside id="frente-aside" class="frente-aside" aria-label="Jira, Teams e contexto da frente" hidden></aside>
+
+<div id="view-terminais" class="view terminais" hidden>
+  <form id="new" class="bar">
+    <label for="new-cwd">Pasta</label>
+    <div class="path-field">
+      <input id="new-cwd" required autocomplete="off" spellcheck="false" list="cwd-options" aria-describedby="cwd-hint">
+      <datalist id="cwd-options"></datalist>
+    </div>
+    <button type="button" class="btn small ghost" id="pin-main" title="O Tab com o campo vazio traz esta pasta">Fixar como principal</button>
+    <label>Nome <input id="new-name" placeholder="opcional"></label>
+    <button class="btn primary" type="submit">Abrir</button>
+    <span id="cwd-hint" class="muted"></span>
+    <span id="new-error" class="error" role="alert"></span>
+  </form>
+
+  <form id="batch" class="bar">
+    <span id="batch-label" class="muted">Marque “Em lote” nos cards para mandar o mesmo pedido a várias sessões</span>
+    <input id="batch-text" placeholder="Ex.: roda os testes e me diz se passou" aria-label="Pedido para as sessões marcadas" disabled>
+    <button class="btn" type="submit" id="batch-send" disabled>Enviar para as marcadas</button>
+  </form>
+
+  <div id="grid" class="grid"></div>
+  <p id="empty" class="empty">Nenhuma sessão ainda. Escolha uma pasta acima e abra a primeira.</p>
+</div>
+</main>
+</div>
+
+
+<dialog id="import-dialog" class="dialog" aria-labelledby="import-title">
+  <form method="dialog" id="import-form">
+    <header class="dialog-head">
+      <h2 id="import-title">Importar terminais</h2>
+      <p class="muted">Sessões do Claude Code abertas fora do Jarvis. Cada uma marcada vira um card com a mesma conversa.</p>
+    </header>
+    <div id="import-list" class="import-list"></div>
+    <p class="import-note">Ao importar, o Jarvis encerra o <code>claude</code> no terminal original e retoma a conversa aqui. A aba original continua aberta, só com o shell.</p>
+    <footer class="dialog-foot">
+      <span id="import-error" class="error" role="alert"></span>
+      <button type="button" class="btn ghost" id="import-refresh">Atualizar lista</button>
+      <button type="button" class="btn" id="import-cancel">Cancelar</button>
+      <button type="submit" class="btn primary" id="import-go" value="go" disabled>Importar</button>
+    </footer>
+  </form>
+</dialog>
+</body>
+</html>

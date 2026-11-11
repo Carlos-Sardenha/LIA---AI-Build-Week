@@ -1,0 +1,1536 @@
+<title>Painel do Jarvis</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!--
+  Painel do Jarvis — modelo da página (skill `checkin`, .claude/skills/checkin/SKILL.md).
+  App de gestão de projetos com pele 8-bit: Início (check-in do dia), Minhas tarefas (Lista/Quadro/Gantt/Planilha),
+  Entrada, Notificações, Projetos (visão geral, tarefas, módulos), Ciclos, Análises, Páginas, Ctrl+K e o Claude junto.
+
+  COMO USAR:
+  - painel.mjs copia este arquivo para System/checkin/checkin.html (git-ignored) e troca SÓ o JSON de
+    <script id="painel-data"> pelo painel do vault (jarvis_painel) + agenda + proposta do dia.
+  - Este modelo é ESTRUTURA (vai pro GitHub): os dados abaixo são fictícios (acme, beta, ana-lima).
+
+  O QUE GRAVA NO VAULT (servidor local `jarvis-escrita`; sem ele, fila do db; sem db, copiar e colar):
+  - tarefa: criar, concluir, reabrir, mover de prioridade (P1–P4) ou para Aguardando, editar título/prazo/projeto-cliente (ctx);
+  - Check-in do dia, Anotações do dia, captura no Inbox/manual.
+  O QUE FICA SÓ NESTE NAVEGADOR (localStorage, até o Mateus aprovar a gravação):
+  - estado Backlog/A fazer/Fazendo, módulo, início, ciclo, subtarefa, bloqueios, rótulos, notas, módulos dos projetos,
+    triagem da Entrada, visões salvas e notificações lidas.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: barra lateral fixa (navegação) + área principal (cabeçalho com visões e filtros, conteúdo) + painel lateral de detalhe.
+   Visual único e deliberado: console 8-bit escuro, bordas de pixel, sem modo claro. */
+:root {
+  color-scheme: dark;
+  --bg: #101030;
+  --side: #0a0a1e;
+  --panel: #1a1a40;
+  --panel-2: #24245a;
+  --line: #3a3a7c;
+  --fg: #f0f0fc;
+  --muted: #a8b0e0;
+  --gold: #fc9838;
+  --gold-2: #f8d878;
+  --bad: #ff5a74;
+  --ok: #6fd65e;
+  --shadow: #000008;
+  --meet: #3a4a8c;
+  --client: #7a4a14;
+  --s-backlog: #1f9e96;
+  --s-todo: #5a72f0;
+  --s-doing: #c86e14;
+  --s-waiting: #c4489e;
+  --s-done: #4aa83a;
+  --pix: 'Press Start 2P', 'Courier New', monospace;
+  --body: 'Pixelify Sans', 'Trebuchet MS', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.35 var(--body); -webkit-font-smoothing: none; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--side); }
+button, select, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px dashed var(--gold-2); outline-offset: 2px; }
+a { color: var(--gold-2); }
+
+.app { display: grid; grid-template-columns: 236px minmax(0, 1fr); height: 100%; }
+.side { background: var(--side); border-right: 2px solid var(--line); overflow-y: auto; padding: 14px 10px 24px max(10px, env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; gap: 14px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 6px; font: 12px var(--pix); color: var(--gold-2); }
+.searchbtn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; background: var(--panel); border: 2px solid var(--line); color: var(--muted); cursor: pointer; text-align: left; }
+.searchbtn kbd { margin-left: auto; font: 8px var(--pix); color: var(--muted); }
+.nav { display: grid; gap: 2px; }
+.nav h3 { font: 8px/1 var(--pix); color: var(--muted); margin: 10px 8px 6px; letter-spacing: .08em; }
+.nav button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; background: none; border: 0; border-left: 3px solid transparent; cursor: pointer; text-align: left; min-height: 36px; }
+.nav button:hover { background: var(--panel); }
+.nav button.on { background: var(--panel-2); border-left-color: var(--gold); }
+.nav button .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav .badge { font: 8px var(--pix); background: var(--gold); color: var(--shadow); padding: 3px 5px; }
+.nav .sub { padding-left: 30px; font-size: 15px; color: var(--muted); min-height: 30px; }
+.nav .sub.on { color: var(--fg); }
+img.ico { width: 16px; height: 16px; image-rendering: pixelated; flex: none; }
+.dot { width: 10px; height: 10px; flex: none; border: 2px solid var(--shadow); display: inline-block; }
+.modo { font: 8px/1.6 var(--pix); padding: 8px; border: 2px solid var(--line); color: var(--muted); }
+.modo.ok { border-color: var(--ok); color: var(--ok); } .modo.warn { border-color: var(--gold); color: var(--gold-2); }
+
+.main { min-width: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.top { position: sticky; top: 0; z-index: 4; background: var(--bg); border-bottom: 2px solid var(--line); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px; display: grid; gap: 10px; }
+.top-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.crumbs { display: flex; align-items: center; gap: 8px; font: 11px/1.5 var(--pix); min-width: 0; flex: 1; }
+.crumbs span { color: var(--muted); }
+.menu-btn { display: none !important; }
+.content { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 48px; display: grid; gap: 18px; align-content: start; }
+
+.btn { display: inline-flex; align-items: center; gap: 8px; font: 9px/1 var(--pix); padding: 9px 11px; min-height: 36px; background: var(--panel-2); border: 2px solid var(--line); cursor: pointer; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.primary { background: var(--gold); color: var(--shadow); border-color: var(--shadow); box-shadow: 3px 3px 0 var(--shadow); }
+.btn.primary:hover { background: var(--gold-2); }
+.btn.primary:active { transform: translate(3px, 3px); box-shadow: none; }
+.btn.small { padding: 6px 8px; min-height: 30px; font-size: 8px; }
+.seg { display: inline-flex; border: 2px solid var(--line); }
+.seg button { font: 8px/1 var(--pix); padding: 9px 10px; min-height: 34px; background: var(--panel); border: 0; border-right: 2px solid var(--line); cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--gold); color: var(--shadow); }
+select.f, input.f, textarea.f { background: var(--panel); border: 2px solid var(--line); padding: 6px 8px; min-height: 34px; font-size: 15px; max-width: 100%; }
+textarea.f { width: 100%; resize: vertical; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.filters select.f { font-size: 14px; }
+.filters .f.on { border-color: var(--gold); }
+.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
+
+.box { background: var(--panel); border: 2px solid var(--line); padding: 14px; min-width: 0; }
+.box h2, h2.h { font: 10px/1.5 var(--pix); margin: 0 0 10px; color: var(--gold-2); letter-spacing: .04em; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.muted { color: var(--muted); }
+.empty { color: var(--muted); font-size: 15px; margin: 0; }
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; padding: 1px 6px; border: 2px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.cli { border-color: var(--gold); color: var(--gold-2); }
+.tag { font: 8px/1 var(--pix); padding: 4px 6px; border: 2px solid currentColor; white-space: nowrap; }
+.tag.ok { color: var(--ok); } .tag.risk { color: var(--gold-2); } .tag.late { color: var(--bad); } .tag.mut { color: var(--muted); }
+.late-t { color: var(--bad); }
+.bar { height: 10px; background: var(--panel-2); border: 2px solid var(--shadow); display: block; }
+.bar i { display: block; height: 100%; background: var(--s-done); }
+.local { font: 7px var(--pix); color: var(--muted); border: 1px dashed var(--muted); padding: 2px 4px; white-space: nowrap; }
+
+.st { width: 14px; height: 14px; flex: none; border: 2px solid var(--c); position: relative; display: inline-block; vertical-align: middle; }
+.st.backlog { --c: var(--s-backlog); border-style: dashed; }
+.st.todo { --c: var(--s-todo); }
+.st.doing { --c: var(--s-doing); background: linear-gradient(90deg, var(--c) 50%, transparent 50%); }
+.st.waiting { --c: var(--s-waiting); }
+.st.waiting::after { content: ""; position: absolute; inset: 2px 3px; border-left: 2px solid var(--c); border-right: 2px solid var(--c); }
+.st.done { --c: var(--s-done); background: var(--c); }
+.st.done::after { content: ""; position: absolute; left: 3px; top: 0; width: 3px; height: 7px; border: solid var(--shadow); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.pri { display: inline-flex; align-items: flex-end; gap: 1px; height: 12px; flex: none; vertical-align: middle; }
+.pri i { width: 3px; background: var(--line); }
+.pri i:nth-child(1) { height: 4px; } .pri i:nth-child(2) { height: 7px; } .pri i:nth-child(3) { height: 10px; } .pri i:nth-child(4) { height: 12px; }
+.pri.p4 i:nth-child(-n+1), .pri.p3 i:nth-child(-n+2), .pri.p2 i:nth-child(-n+3) { background: var(--muted); }
+.pri.p1 i { background: var(--bad); }
+.pri.none i { background: var(--line); height: 2px; }
+.sid { font: 8px var(--pix); color: var(--muted); white-space: nowrap; }
+
+/* Lista */
+.group { border: 2px solid var(--line); background: var(--panel); }
+.group-h { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel-2); cursor: pointer; border: 0; width: 100%; text-align: left; }
+.group-h .n { font: 8px var(--pix); color: var(--muted); }
+.row { display: grid; grid-template-columns: 14px 14px minmax(80px, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; border-top: 2px solid var(--bg); cursor: pointer; width: 100%; background: none; border-left: 0; border-right: 0; border-bottom: 0; text-align: left; }
+.row:hover, .row.sel { background: var(--panel-2); }
+.row .tt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; max-width: 45%; overflow: hidden; }
+@media (max-width: 700px) { .row { grid-template-columns: 14px 14px minmax(0, 1fr); } .row .meta { display: none; } }
+.mini { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.blk { color: var(--bad); font: 8px var(--pix); }
+.rowwrap { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-top: 2px solid var(--bg); }
+.rowwrap .row { border-top: 0; }
+.rowwrap .btn { margin-right: 8px; }
+
+/* Quadro */
+.kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; align-items: start; }
+.kcol { background: var(--panel); border: 2px solid var(--line); display: grid; gap: 8px; padding: 8px; align-content: start; min-height: 160px; }
+.kcol.over { outline: 2px dashed var(--gold-2); }
+.kcol-h { display: flex; align-items: center; gap: 8px; font: 9px/1.5 var(--pix); padding: 4px; }
+.kcol-h .n { color: var(--muted); margin-left: auto; }
+.card { background: var(--bg); border: 2px solid var(--line); padding: 8px 10px; display: grid; gap: 6px; cursor: pointer; text-align: left; width: 100%; }
+.card:hover { border-color: var(--muted); }
+.card .tt { overflow-wrap: anywhere; }
+.card .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.card.pend, .row.pend { opacity: .55; }
+
+/* Gantt */
+.gantt-wrap { overflow-x: auto; border: 2px solid var(--line); background: var(--panel); }
+.gantt { display: grid; position: relative; }
+.g-lbl { position: sticky; left: 0; z-index: 2; background: var(--panel); border-right: 2px solid var(--line); border-bottom: 1px solid var(--bg); padding: 6px 10px; display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; height: 34px; }
+.g-lbl.proj { font: 8px/1.4 var(--pix); color: var(--gold-2); background: var(--panel-2); }
+.g-lbl.mod { color: var(--muted); padding-left: 18px; }
+.g-lbl.task { padding-left: 28px; }
+.g-cell { position: relative; border-bottom: 1px solid var(--bg); height: 34px; }
+.g-head { position: sticky; top: 0; z-index: 3; background: var(--side); font: 7px var(--pix); color: var(--muted); height: 34px; }
+.g-gb { position: absolute; top: 9px; height: 16px; border: 2px solid var(--shadow); cursor: pointer; padding: 0; }
+.g-gb.modbar { top: 13px; height: 8px; background: var(--muted); cursor: default; }
+.g-gb.projbar { top: 11px; height: 12px; background: var(--gold); cursor: default; }
+.g-ms { position: absolute; top: 10px; width: 14px; height: 14px; transform: rotate(45deg); border: 2px solid var(--shadow); cursor: pointer; padding: 0; }
+.g-today { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--bad); z-index: 1; pointer-events: none; }
+
+/* Planilha */
+.sheet-wrap { overflow-x: auto; border: 2px solid var(--line); }
+table.sheet { border-collapse: collapse; width: 100%; min-width: 1080px; background: var(--panel); font-variant-numeric: tabular-nums; }
+.sheet th { font: 8px var(--pix); color: var(--muted); text-align: left; padding: 10px 8px; background: var(--side); position: sticky; top: 0; }
+.sheet td { border-top: 2px solid var(--bg); padding: 4px 6px; }
+.sheet td input.f, .sheet td select.f { width: 100%; min-height: 30px; font-size: 14px; background: transparent; border-color: transparent; }
+.sheet td input.f:hover, .sheet td select.f:hover, .sheet td .f:focus { border-color: var(--line); }
+
+/* Check-in: faixa do dia */
+.intent { width: 100%; border: 0; border-bottom: 2px dashed var(--line); background: transparent; padding: 4px 0 8px; font: 600 clamp(18px, 2.2vw, 22px)/1.3 var(--body); resize: none; overflow: hidden; }
+.intent:focus { outline: none; border-bottom-color: var(--gold); }
+.timeline-wrap { overflow-x: auto; padding-bottom: 4px; }
+.timeline { position: relative; height: 118px; min-width: 620px; }
+.tl-hour { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--line); font: 7px var(--pix); color: var(--muted); padding-left: 4px; }
+.tl-lane { position: absolute; left: 0; right: 0; height: 40px; }
+.tl-lane.m { top: 18px; } .tl-lane.f { top: 66px; }
+.tl-ev { position: absolute; top: 0; height: 40px; padding: 3px 6px; font-size: 13px; line-height: 1.15; overflow: hidden; border: 2px solid var(--shadow); background: var(--meet); }
+.tl-ev b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-ev small { font: 7px var(--pix); opacity: .85; }
+.tl-ev.client { background: var(--client); color: var(--gold-2); }
+.tl-ev.foco { background: var(--s-todo); cursor: pointer; text-align: left; }
+.tl-ev.clash { background: var(--bad); color: var(--shadow); }
+.tl-ev.out { opacity: .45; }
+.tl-now, .tl-end { position: absolute; top: 14px; bottom: 0; border-left: 2px solid var(--bad); pointer-events: none; }
+.tl-end { border-left-color: var(--gold); }
+.tl-end span, .tl-now span { position: absolute; top: -14px; left: 3px; font: 7px var(--pix); white-space: nowrap; }
+.tl-end span { color: var(--gold-2); } .tl-now span { color: var(--bad); }
+.tl-gap { position: absolute; top: 0; height: 40px; border: 2px dashed transparent; background: none; padding: 0; }
+.tl-gap:hover { border-color: var(--gold); cursor: copy; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 14px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--shadow); }
+.dayband { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 860px) { .dayband { grid-template-columns: minmax(0, 1fr); } }
+.top3 { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.slot { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; border: 2px solid var(--line); padding: 8px 10px; background: var(--bg); min-height: 52px; }
+.slot .n { font: 14px var(--pix); color: var(--gold); }
+.slot.empty { border-style: dashed; color: var(--muted); font-size: 15px; }
+.slot.drop { border-color: var(--gold); }
+.slot .t { font-weight: 600; overflow-wrap: anywhere; cursor: pointer; }
+.slot .m { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.slot select { font-size: 13px; margin-top: 4px; max-width: 100%; }
+.ic { border: 2px solid var(--line); background: var(--panel); width: 30px; height: 30px; display: inline-grid; place-items: center; font-size: 13px; line-height: 1; cursor: pointer; padding: 0; }
+.ic:hover { border-color: var(--muted); }
+.risks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.risk { padding: 7px 10px; font-size: 15px; background: var(--bg); border-left: 4px solid var(--gold); }
+.risk.h { border-left-color: var(--bad); }
+.week { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+@media (max-width: 700px) { .week { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.day { background: var(--bg); border: 2px solid var(--line); padding: 6px; min-height: 90px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.day.today { border-color: var(--gold); }
+.day .h { font: 7px var(--pix); color: var(--muted); display: flex; justify-content: space-between; }
+.day .it { font-size: 13px; line-height: 1.2; padding: 3px 5px; background: var(--panel); overflow-wrap: anywhere; }
+.day .it.cl { color: var(--gold-2); }
+.day .it.dl { color: var(--bad); }
+
+/* Claude e anotações */
+.msgs { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; }
+.msg { padding: 8px 10px; font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; border: 2px solid var(--line); }
+.msg.u { background: var(--panel-2); align-self: flex-end; max-width: 90%; }
+.msg.a { background: var(--bg); }
+.msg.s { font-size: 14px; color: var(--muted); border: 0; padding: 2px 0; }
+.quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.ask { display: flex; gap: 6px; }
+.notes { list-style: none; margin: 0; padding: 0; font-size: 15px; display: grid; gap: 4px; max-height: 180px; overflow-y: auto; }
+.inline { display: flex; gap: 6px; flex-wrap: wrap; }
+.inline .f { flex: 1; min-width: 0; }
+.person { border-top: 2px solid var(--bg); padding-top: 8px; }
+.person:first-child { border-top: 0; padding-top: 0; }
+.person .nm { font: 8px/1.6 var(--pix); color: var(--gold-2); display: flex; justify-content: space-between; gap: 8px; }
+.person ul { margin: 4px 0 0; padding-left: 18px; font-size: 15px; }
+
+/* Painel de detalhe */
+.peek { position: fixed; z-index: 8; top: 0; right: 0; bottom: 0; width: min(460px, 100%); background: var(--side); border-left: 3px solid var(--gold); box-shadow: -6px 0 0 var(--shadow); overflow-y: auto; padding: calc(14px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(32px + env(safe-area-inset-bottom, 0px)) 18px; display: grid; gap: 14px; align-content: start; }
+.peek-h { display: flex; align-items: center; gap: 8px; }
+.peek-h .sid { flex: 1; }
+.peek textarea.title { font: 600 20px/1.3 var(--body); background: transparent; border: 2px solid transparent; padding: 4px; width: 100%; resize: none; }
+.peek textarea.title:hover, .peek textarea.title:focus { border-color: var(--line); }
+.props { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px 10px; align-items: center; }
+.props label { font: 8px/1.4 var(--pix); color: var(--muted); }
+.props .f { width: 100%; }
+.sect h4 { font: 8px var(--pix); color: var(--gold-2); margin: 0 0 8px; display: flex; gap: 8px; align-items: center; }
+.sect ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.linkrow { display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 4px 0; cursor: pointer; text-align: left; width: 100%; }
+.linkrow:hover .tt { text-decoration: underline; }
+.linkrow .tt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.hist li { font-size: 14px; color: var(--muted); display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; }
+
+/* Modais */
+.veil { position: fixed; inset: 0; z-index: 9; background: rgba(0, 0, 8, .7); display: grid; place-items: start center; padding: calc(10vh + env(safe-area-inset-top, 0px)) 16px 16px; }
+.modal { width: min(620px, 100%); background: var(--side); border: 3px solid var(--fg); box-shadow: 6px 6px 0 var(--shadow); padding: 16px; display: grid; gap: 12px; max-height: 80vh; overflow-y: auto; }
+.modal h2 { font: 10px var(--pix); margin: 0; color: var(--gold-2); }
+.cmd input { width: 100%; font-size: 18px; }
+.cmd ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.cmd li button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; background: none; border: 0; cursor: pointer; text-align: left; }
+.cmd li button.on { background: var(--panel-2); outline: 2px solid var(--gold); }
+.cmd .kind { font: 7px var(--pix); color: var(--muted); margin-left: auto; }
+.form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.form .full { grid-column: 1 / -1; }
+.form label { display: grid; gap: 4px; font: 8px/1.4 var(--pix); color: var(--muted); }
+.form .f { width: 100%; }
+@media (max-width: 520px) { .form { grid-template-columns: 1fr; } }
+
+/* Páginas */
+.reader { max-width: 70ch; display: grid; gap: 10px; }
+.reader h1 { font: 13px/1.6 var(--pix); margin: 0; color: var(--gold-2); text-wrap: balance; }
+.reader h3 { font: 9px/1.6 var(--pix); margin: 10px 0 0; color: var(--gold-2); }
+.reader p, .reader ul { margin: 0; }
+.reader blockquote { margin: 0; padding: 6px 12px; border-left: 4px solid var(--gold); background: var(--bg); }
+.wl { background: none; border: 0; padding: 0; color: var(--gold-2); text-decoration: underline; cursor: pointer; }
+
+/* Gráficos */
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.chart text { fill: var(--muted); font: 11px var(--body); }
+.tip { position: fixed; z-index: 20; pointer-events: none; background: var(--side); border: 2px solid var(--fg); padding: 6px 8px; font-size: 14px; max-width: 260px; }
+.hbar { display: grid; grid-template-columns: 120px minmax(0, 1fr) 36px; gap: 8px; align-items: center; font-size: 14px; }
+.hbar .trk { height: 16px; }
+.hbar .trk i { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.hbar .v { text-align: right; font-variant-numeric: tabular-nums; }
+.hbars { display: grid; gap: 8px; }
+
+.toasts { position: fixed; z-index: 21; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 8px; max-width: min(380px, calc(100vw - 32px)); }
+.toast { background: var(--side); border: 2px solid var(--gold); padding: 10px 12px; font-size: 15px; box-shadow: 3px 3px 0 var(--shadow); }
+.toast.err { border-color: var(--bad); }
+pre.copy { white-space: pre-wrap; background: var(--bg); padding: 10px; font: 12px/1.5 monospace; max-height: 220px; overflow: auto; margin: 0; }
+
+@media (max-width: 900px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .side { position: fixed; z-index: 10; top: 0; bottom: 0; left: 0; width: min(280px, 86vw); transform: translateX(-105%); transition: transform .15s steps(3); padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
+  .side.open { transform: none; box-shadow: 6px 0 0 var(--shadow); }
+  .menu-btn { display: inline-flex !important; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="app">
+  <aside class="side" id="side" aria-label="Navegação"></aside>
+  <div class="main" id="main">
+    <header class="top" id="top"></header>
+    <main class="content" id="content"></main>
+  </div>
+</div>
+<div id="peek-root"></div>
+<div id="modal-root"></div>
+<div class="tip" id="tip" hidden></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script id="painel-data" type="application/json">
+{
+  "hoje": "2026-10-27",
+  "diaSemana": "terça-feira",
+  "geradoEm": "2026-10-27T09:00:00-03:00",
+  "expediente": {"inicio": "09:00", "fim": "16:00"},
+  "proposta": {
+    "intencao": "Fechar os números de adesão antes da revisão da QBR.",
+    "top3Texto": ["Fechar números de adesão", "Revisar health score da beta", "Preparar pauta do 1:1"],
+    "blocos": [
+      {"inicio": "09:30", "fim": "10:30", "rotulo": "Números de adesão", "tarefaTexto": "Fechar números de adesão"},
+      {"inicio": "11:30", "fim": "12:00", "rotulo": "Cobranças / P3"},
+      {"inicio": "13:00", "fim": "14:00", "rotulo": "Health score beta", "tarefaTexto": "Revisar health score da beta"}
+    ],
+    "riscos": ["Revisão da QBR às 16:00 sem pauta no vault"]
+  },
+  "agenda": [
+    {"data": "2026-10-27", "inicio": "09:00", "fim": "09:15", "titulo": "Daily do time", "tipo": "meet"},
+    {"data": "2026-10-27", "inicio": "10:30", "fim": "11:30", "titulo": "Alinhamento gama", "tipo": "client"},
+    {"data": "2026-10-27", "inicio": "14:00", "fim": "14:30", "titulo": "1:1 ana-lima", "tipo": "meet"},
+    {"data": "2026-10-27", "inicio": "16:00", "fim": "16:30", "titulo": "Revisão da QBR acme", "tipo": "meet"},
+    {"data": "2026-10-29", "inicio": "15:00", "fim": "16:00", "titulo": "QBR acme", "tipo": "client"}
+  ],
+  "painel": {
+    "versao": "exemplo",
+    "todo": [
+      {"id": "a1", "texto": "Fechar números de adesão", "feito": false, "quadrante": "P1", "campos": {"prazo": "2026-10-26", "criado": "2026-10-15"}, "ctx": "qbr-acme-q4"},
+      {"id": "a2", "texto": "Revisar health score da beta", "feito": false, "quadrante": "P1", "campos": {"prazo": "2026-10-27", "criado": "2026-10-20"}, "ctx": "beta"},
+      {"id": "a3", "texto": "Montar cronograma de treinamento", "feito": false, "quadrante": "P1", "campos": {"prazo": "2026-10-28", "criado": "2026-10-22"}, "ctx": "implantacao-beta"},
+      {"id": "a4", "texto": "Enviar ata da QBR", "feito": false, "quadrante": "P2", "campos": {"prazo": "2026-10-30", "criado": "2026-10-20"}, "ctx": "qbr-acme-q4"},
+      {"id": "a5", "texto": "Preparar pauta do 1:1", "feito": false, "quadrante": "P3", "campos": {"prazo": "2026-10-27", "criado": "2026-10-24"}, "ctx": "ana-lima"},
+      {"id": "a6", "texto": "Atualizar planilha de acessos", "feito": false, "quadrante": "P3", "campos": {"prazo": "2026-10-22", "criado": "2026-10-06"}, "ctx": "acme"},
+      {"id": "a7", "texto": "Checklist de go-live", "feito": false, "quadrante": "P2", "campos": {"prazo": "2026-11-13", "criado": "2026-10-20"}, "ctx": "implantacao-beta"},
+      {"id": "a8", "texto": "Ler artigo sobre health score", "feito": false, "quadrante": "P4", "campos": {"criado": "2026-10-10"}, "ctx": null},
+      {"id": "a9", "texto": "Base de fornecedores revisada", "feito": false, "quadrante": "AG", "campos": {"quem": "[[ana-lima]]", "desde": "2026-10-15", "cobrar": "2026-10-27"}, "ctx": "implantacao-beta"},
+      {"id": "a10", "texto": "Consolidar perfis por área", "feito": false, "quadrante": "AG", "campos": {"quem": "[[bruno-souza]]", "desde": "2026-10-20", "cobrar": "2026-10-28", "prazo": "2026-10-23"}, "ctx": "acme"},
+      {"id": "a11", "texto": "Rascunhar slides da QBR", "feito": true, "quadrante": "OK", "campos": {"feito": "2026-10-23", "criado": "2026-10-15"}, "ctx": "qbr-acme-q4"},
+      {"id": "a12", "texto": "Validar carga de fornecedores", "feito": true, "quadrante": "OK", "campos": {"feito": "2026-10-21", "criado": "2026-10-09"}, "ctx": "implantacao-beta"},
+      {"id": "a13", "texto": "Organizar notas da semana", "feito": true, "quadrante": "OK", "campos": {"feito": "2026-10-26", "criado": "2026-10-23"}, "ctx": null}
+    ],
+    "compromissos": [
+      {"id": "2026-10-15-bruno-souza-revisar-perfis", "oque": "Revisar perfis de acesso", "status": "aberto", "prazo": "2026-10-20", "assumido_por": "bruno-souza", "cliente": "acme"},
+      {"id": "2026-10-20-mateus-falcao-enviar-relatorio", "oque": "Enviar relatório de adesão", "status": "aberto", "prazo": "2026-10-30", "assumido_por": "mateus-falcao", "cliente": "beta"}
+    ],
+    "projetos": [
+      {"id": "implantacao-beta", "titulo": "Implantação beta", "status": "ativo", "prazo": "2026-11-20", "inicio": "2026-10-05", "cliente": "beta", "temas": []},
+      {"id": "qbr-acme-q4", "titulo": "QBR acme Q4", "status": "ativo", "prazo": "2026-10-29", "inicio": "2026-10-13", "cliente": "acme", "temas": []}
+    ],
+    "clientes": {"acme": "acme", "beta": "beta", "gama": "gama"},
+    "pessoas": {"ana-lima": "Ana Lima", "bruno-souza": "Bruno Souza", "mateus-falcao": "Mateus Falcão"},
+    "reunioes": [],
+    "entrada": [
+      {"id": "outlook/2026-10-27-unidade-sul.md", "fonte": "outlook", "arquivo": "Inbox/outlook/2026-10-27-unidade-sul.md", "em": "2026-10-27 08:12", "titulo": "Incluir unidade Sul no treinamento", "resumo": "beta pede que a unidade Sul entre na primeira turma."},
+      {"id": "manual/2026-10-26-ata.md", "fonte": "manual", "arquivo": "Inbox/manual/2026-10-26-ata.md", "em": "2026-10-26 12:05", "titulo": "Modelo de ata padrão para QBR", "resumo": "Ata em três blocos: números, decisões, próximos passos."}
+    ],
+    "paginas": [
+      {"id": "2026-10-27", "tipo": "daily", "titulo": "Daily 27/10", "data": "2026-10-27", "corpo": "## Briefing\n- Números de adesão venceram ontem: fechar antes da revisão com o gestor.\n- Cobrar [[bruno-souza]] sobre os perfis da [[acme]].", "links": ["qbr-acme-q4"]},
+      {"id": "2026-10-22-go-live-beta", "tipo": "decisao", "titulo": "Go-live da beta em 20/11", "data": "2026-10-22", "corpo": "Decidido no alinhamento da [[implantacao-beta]].\n## Evidências\n> \"Fechamos o go-live para 20 de novembro.\" — Ana Lima", "links": ["implantacao-beta"]},
+      {"id": "ata-qbr-tres-blocos", "tipo": "nota", "titulo": "Ata de QBR funciona melhor em três blocos", "data": "2026-10-23", "corpo": "Números, decisões, próximos passos. Cada passo com dono e prazo.", "links": ["qbr-acme-q4"]}
+    ],
+    "log": [
+      {"em": "2026-10-27 08:30", "tipo": "painel", "txt": "tarefa concluída"},
+      {"em": "2026-10-26 18:02", "tipo": "checkout", "txt": "Checkout 2026-10-26"},
+      {"em": "2026-10-26 07:35", "tipo": "ritual", "txt": "Ritual matinal 2026-10-26"}
+    ],
+    "daily": {"existe": true, "anotacoes": "- 08:40 Entrevistas da gama concluídas"}
+  }
+}
+</script>
+
+<script>
+(() => {
+  'use strict';
+  const D = JSON.parse(document.getElementById('painel-data').textContent);
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  const toMin = (s) => { const [h, m] = String(s || '0:0').split(':').map(Number); return h * 60 + (m || 0); };
+  const fmt = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+  const addD = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const dias = (a, b) => Math.round((new Date(b + 'T12:00:00Z') - new Date(a + 'T12:00:00Z')) / 864e5);
+  const d2 = (iso) => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '';
+  const DOW = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  const dowN = (iso) => new Date(iso + 'T12:00:00Z').getUTCDay();
+  const dow = (iso) => DOW[dowN(iso)];
+  const SP = (o) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', hourCycle: 'h23', ...o }).format(new Date());
+  const agora = () => `${SP({ year: 'numeric', month: '2-digit', day: '2-digit' })} ${SP({ hour: '2-digit', minute: '2-digit' })}`;
+  function semana(iso) {
+    const d = new Date(iso + 'T12:00:00Z'), w = (d.getUTCDay() + 6) % 7;
+    const qui = new Date(d); qui.setUTCDate(d.getUTCDate() - w + 3);
+    const j4 = new Date(Date.UTC(qui.getUTCFullYear(), 0, 4));
+    const n = 1 + Math.round(((qui - j4) / 864e5 - 3 + ((j4.getUTCDay() + 6) % 7)) / 7);
+    const seg = addD(iso, -w);
+    return { id: 'W' + n, inicio: seg, fim: addD(seg, 4) };
+  }
+
+  const HOJE = D.hoje;
+  const ME = 'mateus-falcao';
+  const SERV_W = 'host:jarvis-escrita', SERV_R = 'host:jarvis', SERV_O = 'Microsoft 365';
+  const CIC = semana(HOJE);
+  const CICLOS = [-21, -14, -7, 0, 7].map((n) => semana(addD(HOJE, n)));
+  const ESTADOS = [['backlog', 'Backlog'], ['todo', 'A fazer'], ['doing', 'Fazendo'], ['waiting', 'Aguardando'], ['done', 'Feito']];
+  const ESTADO = Object.fromEntries(ESTADOS);
+  const PRIS = [['P1', 'P1 · Urgente'], ['P2', 'P2 · Alta'], ['P3', 'P3 · Média'], ['P4', 'P4 · Baixa'], ['', 'Sem prioridade']];
+  const PRI = Object.fromEntries(PRIS);
+  const COR = { backlog: 'var(--s-backlog)', todo: 'var(--s-todo)', doing: 'var(--s-doing)', waiting: 'var(--s-waiting)', done: 'var(--s-done)' };
+  const FONTES = { outlook: 'E-mail', teams: 'Teams', manual: 'Captura', clickup: 'ClickUp', jira: 'Jira', 'claude-code': 'Claude Code', meetrox: 'Meetrox' };
+
+  // ── Estado ──
+  let P = D.painel;                 // painel do vault (retrato ou ao vivo)
+  let A = D.agenda || [];           // agenda (retrato ou Outlook ao vivo)
+  const prop = D.proposta || {};
+  // Campos que o vault ainda não guarda: só neste navegador
+  const KLOC = 'jarvis-painel-local-v1';
+  let LOC = { t: {}, mod: {}, ent: {}, visoes: [], lidas: {}, eventos: [] };
+  try { const r = localStorage.getItem(KLOC); if (r) LOC = { ...LOC, ...JSON.parse(r) }; } catch (e) {}
+  const salvarLoc = () => { try { localStorage.setItem(KLOC, JSON.stringify(LOC)); } catch (e) {} };
+  // Check-in do dia (rascunho por data)
+  const DRAFT = 'painel-rascunho-' + HOJE;
+  const byText = (t) => (P.todo || []).find((x) => !x.feito && (x.texto === t || x.texto.startsWith(t)));
+  let S = {
+    intencao: prop.intencao || '',
+    top3: (prop.top3 && prop.top3.length ? prop.top3 : (prop.top3Texto || []).map((t) => byText(t)?.id).filter(Boolean)).slice(0, 3),
+    blocos: (prop.blocos || []).map((b) => ({ inicio: b.inicio, fim: b.fim, rotulo: b.rotulo, tarefa: b.tarefa || (b.tarefaTexto ? byText(b.tarefaTexto)?.id : null) || null })),
+    fim: (D.expediente && D.expediente.fim) || '16:00', obs: ''
+  };
+  try { const r = localStorage.getItem(DRAFT); if (r) S = { ...S, ...JSON.parse(r) }; } catch (e) {}
+  const saveDraft = () => { try { localStorage.setItem(DRAFT, JSON.stringify(S)); } catch (e) {} };
+  // Navegação
+  let UI = { tela: 'inicio', proj: null, aba: 'geral', ciclo: CIC.id, pagina: null, peek: null, colapsados: {}, salvando: false, vistaId: null,
+    vista: { layout: 'lista', agrupar: 'estado', filtros: {} } };
+  try { const u = JSON.parse(localStorage.getItem('jarvis-painel-ui') || 'null'); if (u) UI = { ...UI, ...u, peek: null, salvando: false }; } catch (e) {}
+  const salvarUI = () => { try { localStorage.setItem('jarvis-painel-ui', JSON.stringify({ tela: UI.tela, proj: UI.proj, aba: UI.aba, ciclo: UI.ciclo, pagina: UI.pagina, vista: UI.vista, vistaId: UI.vistaId, colapsados: UI.colapsados })); } catch (e) {} };
+  const live = { mcp: null, db: null, sample: null, escrita: false, leitura: false, outlook: false };
+  let confirmado = null;
+  const pendentes = new Set();
+
+  // ── Modelo: tarefa do TODO + campos locais ──
+  const PJ = (id) => (P.projetos || []).find((p) => p.id === id);
+  const CL = () => P.clientes || {};
+  const nome = (id) => (P.pessoas && P.pessoas[id]) || CL()[id] || PJ(id)?.titulo || String(id || '').replace(/-/g, ' ');
+  const unlink = (s) => String(s || '').replace(/^\[\[|\]\]$/g, '').split('|')[0];
+  const md = (s) => esc(s)
+    .replace(/\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g, (_, id, al) => esc(al || nome(id)))
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (_, l, u) => `<a href="${u}" target="_blank" rel="noopener">${l}</a>`);
+  const txt = (s) => String(s || '').replace(/\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g, (_, id, al) => al || nome(id)).replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  function locDe(t) {
+    if (LOC.t[t.id]) return LOC.t[t.id];
+    const k = Object.keys(LOC.t).find((x) => LOC.t[x].texto === t.texto && !(P.todo || []).some((y) => y.id === x));
+    if (k) { LOC.t[t.id] = LOC.t[k]; delete LOC.t[k]; salvarLoc(); return LOC.t[t.id]; }
+    return {};
+  }
+  // datas do vault podem vir com texto ("2026-10-27 (fechada no Jira)") ou "sem prazo": fica só AAAA-MM-DD
+  const dt = (v) => /^\d{4}-\d{2}-\d{2}/.test(String(v || '')) ? String(v).slice(0, 10) : null;
+  function vt(t) {
+    const o = locDe(t), c = t.campos || {}, ctx = t.ctx || null;
+    const quad = t.quadrante;
+    const estado = t.feito ? 'done' : quad === 'AG' ? 'waiting' : (['backlog', 'todo', 'doing'].includes(o.estado) ? o.estado : 'todo');
+    const pj = PJ(ctx) ? ctx : null;
+    return { id: t.id, raw: t, titulo: t.texto, estado, quadrante: quad,
+      prioridade: ['P1', 'P2', 'P3', 'P4'].includes(quad) ? quad : (o.prioridade || ''),
+      projeto: pj, cliente: CL()[ctx] ? ctx : (pj ? PJ(pj).cliente || null : null), ctx,
+      prazo: dt(c.prazo), quem: unlink(c.quem) || o.quem || null, cobrar: dt(c.cobrar),
+      criado: dt(c.criado) || dt(c.desde), feito: t.feito ? dt(c.feito) || HOJE : null, fonte: c.fonte || 'manual',
+      modulo: o.modulo || null, inicio: o.inicio || null, ciclo: o.ciclo || null, pai: o.pai || null,
+      bloqueia: o.bloqueia || [], temas: o.temas || [], notas: o.notas || '', hist: o.hist || [] };
+  }
+  let TS = [];
+  const montar = () => {
+    for (const p of P.projetos || []) { p.prazo = dt(p.prazo); p.inicio = dt(p.inicio); }
+    for (const c of P.compromissos || []) c.prazo = dt(c.prazo);
+    TS = (P.todo || []).map(vt);
+  };
+  const T = (id) => TS.find((t) => t.id === id);
+  const sid = (t) => '#' + String(t.id).slice(0, 4);
+  const atrasada = (t) => t.estado !== 'done' && t.prazo && t.prazo < HOJE;
+  const filhos = (t) => TS.filter((x) => x.pai === t.id);
+  const bloqueadaPor = (t) => TS.filter((x) => x.bloqueia.includes(t.id) && x.estado !== 'done');
+  const cicloDe = (t) => t.ciclo || (t.estado === 'done' && t.feito ? semana(t.feito).id : t.prazo ? (t.prazo < CIC.inicio && t.estado !== 'done' ? CIC.id : semana(t.prazo).id) : null);
+  const modulos = (pid) => LOC.mod[pid] || [];
+  function progresso(ts) { const n = ts.length, f = ts.filter((t) => t.estado === 'done').length; return { n, f, pct: n ? Math.round(f / n * 100) : 0 }; }
+  function situacao(p) {
+    const ts = TS.filter((t) => t.projeto === p.id), pr = progresso(ts);
+    if (p.prazo && p.prazo < HOJE && pr.pct < 100) return ['late', 'ATRASADO'];
+    if (ts.some(atrasada) || (p.prazo && dias(HOJE, p.prazo) <= 7 && pr.pct < 70)) return ['risk', 'EM RISCO'];
+    return ['ok', 'EM DIA'];
+  }
+  const agHoje = () => A.filter((e) => (e.data || HOJE) === HOJE);
+
+  // ── Ícones em pixel (8×8, arte própria) ──
+  const BMP = {
+    inicio: ['...##...', '..####..', '.######.', '########', '.#....#.', '.#.##.#.', '.#.##.#.', '.######.'],
+    minhas: ['########', '#......#', '#....#.#', '#...#..#', '#.#.#..#', '#..#...#', '#......#', '########'],
+    entrada: ['...##...', '...##...', '.######.', '..####..', '#..##..#', '#......#', '#.####.#', '########'],
+    notif: ['...##...', '..####..', '.######.', '.######.', '.######.', '########', '........', '...##...'],
+    ciclo: ['..####..', '.#....##', '#....###', '#......#', '#......#', '###....#', '##....#.', '..####..'],
+    pagina: ['#######.', '#.....#.', '#.###.#.', '#.....#.', '#.###.#.', '#.....#.', '#.###.#.', '#######.'],
+    analise: ['......##', '......##', '...##.##', '...##.##', '##.##.##', '##.##.##', '##.##.##', '########'],
+    visao: ['........', '..####..', '.#....#.', '#..##..#', '#..##..#', '.#....#.', '..####..', '........'],
+    busca: ['..###...', '.#...#..', '#.....#.', '#.....#.', '.#...#..', '..####..', '......#.', '.......#'],
+    jarvis: ['.######.', '#......#', '#.#..#.#', '#......#', '#.####.#', '#......#', '.######.', '..#..#..']
+  };
+  const icoCache = {};
+  function ico(nm, cor = '#f0f0fc') {
+    const k = nm + cor; if (icoCache[k]) return icoCache[k];
+    const c = document.createElement('canvas'); c.width = 8; c.height = 8; const x = c.getContext('2d'); x.fillStyle = cor;
+    BMP[nm].forEach((r, j) => [...r].forEach((ch, i) => { if (ch === '#') x.fillRect(i, j, 1, 1); }));
+    return (icoCache[k] = c.toDataURL());
+  }
+  const img = (nm, cor) => `<img class="ico" src="${ico(nm, cor)}" alt="">`;
+  const stIco = (e) => `<span class="st ${e}" title="${esc(ESTADO[e])}" role="img" aria-label="${esc(ESTADO[e])}"></span>`;
+  const priIco = (p) => `<span class="pri ${p ? p.toLowerCase() : 'none'}" title="${esc(PRI[p || ''])}" role="img" aria-label="Prioridade ${esc(PRI[p || ''])}"><i></i><i></i><i></i><i></i></span>`;
+
+  // ── Feedback ──
+  function toast(msg, err) { const t = document.createElement('div'); t.className = 'toast' + (err ? ' err' : ''); t.textContent = msg; $('toasts').append(t); setTimeout(() => t.remove(), err ? 7000 : 3500); }
+  function evento(txt, ref) { LOC.eventos.unshift({ em: agora(), txt, ref }); LOC.eventos = LOC.eventos.slice(0, 80); }
+
+  // ── Gravação: servidor local → fila no db → copiar ──
+  async function gravar(tool, args, rotulo) {
+    if (live.escrita) {
+      try {
+        const r = await live.mcp.callTool(SERV_W, tool, args);
+        toast('Gravado no vault: ' + rotulo);
+        return r.payload ?? r.structuredContent ?? { ok: true };
+      } catch (e) {
+        if (e.code === 'cancelled') { toast('Cancelado no app: nada foi gravado.', true); throw e; }
+        if (e.code === 'tool_error') { toast('O vault recusou: ' + (e.message || 'erro'), true); throw e; }
+        if (e.code === 'server_unavailable' || e.code === 'upstream_error') { toast('Sem resposta do vault. Confira antes de repetir (pode ter gravado).', true); throw e; }
+        live.escrita = false;
+      }
+    }
+    if (live.db) {
+      await live.db.collection('fila').add({ tool, args, rotulo, em: new Date().toISOString(), status: 'pendente' });
+      toast('Na fila: ' + rotulo + ' (o Claude grava no próximo /checkin)');
+      return { fila: true };
+    }
+    mostrarCopia(`${tool} ${JSON.stringify(args)}`);
+    toast('Sem gravação aqui: copie o resumo e cole no chat do Claude.', true);
+    return { copiar: true };
+  }
+  const copiaTxt = [];
+  function mostrarCopia(l) { copiaTxt.push(l); }
+  async function recarregar(silencioso) {
+    if (live.escrita) {
+      try {
+        const r = await live.mcp.callTool(SERV_W, 'jarvis_painel', { data: HOJE }, { cache: false });
+        const p = r.payload ?? r.structuredContent;
+        if (p && Array.isArray(p.todo)) { P = { ...P, ...p }; S.top3 = S.top3.filter((id) => (P.todo || []).some((t) => t.id === id && !t.feito)); }
+      } catch (e) { if (!silencioso) toast('Não consegui reler o vault (' + e.code + ').', true); }
+    }
+    if (live.outlook) await lerAgenda(silencioso);
+    render();
+  }
+  async function lerAgenda(silencioso) {
+    try {
+      const r = await live.mcp.callTool(SERV_O, 'outlook_calendar_search', { query: '*', afterDateTime: HOJE + 'T00:00:00', beforeDateTime: addD(HOJE, 9) + 'T23:59:00', order: 'oldest', limit: 25, offset: 0 }, { cache: { staleTime: 120000, gcTime: 600000 } });
+      const objs = [];
+      const take = (v) => { if (!v) return; if (Array.isArray(v)) v.forEach(take); else if (typeof v === 'object') { if (v.subject && v.start) objs.push(v); else Object.values(v).forEach((x) => typeof x === 'object' && take(x)); } };
+      take(r.structuredContent); take(r.payload);
+      for (const c of r.content || []) if (c.type === 'text') for (const part of String(c.text).split(/(?<=\})\s*(?=\{)/)) { try { take(JSON.parse(part)); } catch (e) {} }
+      const toLocal = (o) => { const d = new Date(String(o.dateTime).replace(/(\.\d+)?$/, '') + (o.timeZone === 'UTC' ? 'Z' : '-03:00')); const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).reduce((a, x) => (a[x.type] = x.value, a), {}); return { data: `${p.year}-${p.month}-${p.day}`, hm: `${p.hour}:${p.minute}` }; };
+      const novos = objs.filter((o) => !o.isCancelled && !o.isAllDay && o.start && o.start.dateTime).map((o) => {
+        const s = toLocal(o.start), f = toLocal(o.end || o.start);
+        const externo = (o.attendees || []).some((x) => !/@wehandle\.com\.br$/i.test(String(x)));
+        return { data: s.data, inicio: s.hm, fim: f.hm, titulo: o.subject, tipo: externo ? 'client' : 'meet' };
+      });
+      if (novos.length) A = novos;
+    } catch (e) { if (!silencioso && e.code !== 'not_in_manifest') toast('Agenda ao vivo indisponível (' + e.code + '); mostrando o retrato.', true); }
+  }
+
+  // ── Mudanças numa tarefa: o que o vault aceita vai pelo jarvis_tarefa; o resto fica local ──
+  function remap(velho, novo) {
+    if (!novo || velho === novo) return;
+    if (LOC.t[velho]) { LOC.t[novo] = { ...LOC.t[velho], ...(LOC.t[novo] || {}) }; delete LOC.t[velho]; }
+    for (const o of Object.values(LOC.t)) { if (o.pai === velho) o.pai = novo; if (o.bloqueia) o.bloqueia = o.bloqueia.map((x) => x === velho ? novo : x); }
+    S.top3 = S.top3.map((x) => x === velho ? novo : x);
+    S.blocos.forEach((b) => { if (b.tarefa === velho) b.tarefa = novo; });
+    if (UI.peek === velho) UI.peek = novo;
+    salvarLoc(); saveDraft();
+  }
+  async function tarefa(args, rotulo, otimista) {
+    const back = JSON.stringify(P.todo);
+    if (otimista) { otimista(); montar(); render(); }
+    if (args.id) pendentes.add(args.id);
+    let r = null;
+    try { r = await gravar('jarvis_tarefa', { versao: P.versao, ...args }, rotulo); if (args.id && r && r.id) remap(args.id, r.id); }
+    catch (e) { P.todo = JSON.parse(back); }
+    finally { if (args.id) pendentes.delete(args.id); }
+    await recarregar(true);
+    return r;
+  }
+  function loc(id) { const t = (P.todo || []).find((x) => x.id === id); LOC.t[id] ||= {}; if (t) LOC.t[id].texto = t.texto; return LOC.t[id]; }
+  function hist(id, txt) { const o = loc(id); o.hist = [...(o.hist || []), { em: agora(), txt }].slice(-40); }
+  const ROT = { estado: 'Estado', prioridade: 'Prioridade', projeto: 'Projeto', modulo: 'Módulo', ciclo: 'Ciclo', prazo: 'Prazo', inicio: 'Início', cliente: 'Cliente', quem: 'Com quem', titulo: 'Título', notas: 'Notas' };
+  function fmtV(campo, v) {
+    if (v === undefined || v === null || v === '') return '—';
+    if (campo === 'estado') return ESTADO[v];
+    if (campo === 'prioridade') return PRI[v];
+    if (campo === 'prazo' || campo === 'inicio') return d2(v);
+    if (campo === 'modulo') return v;
+    if (campo === 'titulo' || campo === 'notas') return '“' + String(v).slice(0, 40) + (String(v).length > 40 ? '…' : '') + '”';
+    return nome(v);
+  }
+  function mudar(t, campo, valor) {
+    const antes = t[campo] ?? '';
+    if (String(antes) === String(valor ?? '')) return;
+    const desc = `${ROT[campo]}: ${fmtV(campo, antes)} → ${fmtV(campo, valor)}`;
+    hist(t.id, desc); evento(`${t.titulo} · ${desc}`, t.id); salvarLoc();
+    const o = loc(t.id), r = t.raw;
+    const localmente = () => { salvarLoc(); montar(); render(); toast(`${desc} · só neste navegador`); };
+    if (campo === 'titulo') { if (!String(valor).trim()) return; return tarefa({ acao: 'editar', id: t.id, texto: valor }, `título de "${t.titulo}"`, () => { r.texto = valor; o.texto = valor; }); }
+    if (campo === 'prazo') return tarefa({ acao: 'editar', id: t.id, prazo: valor || '' }, `prazo de "${t.titulo}"`, () => { r.campos = { ...r.campos, prazo: valor || undefined }; });
+    if (campo === 'projeto' || campo === 'cliente') return tarefa({ acao: 'editar', id: t.id, ctx: valor || '' }, `${ROT[campo].toLowerCase()} de "${t.titulo}"`, () => { r.ctx = valor || null; if (campo === 'projeto') o.modulo = null; });
+    if (campo === 'estado') {
+      if (valor === 'done') return tarefa({ acao: 'concluir', id: t.id }, `concluída: "${t.titulo}"`, () => { r.feito = true; r.quadrante = 'OK'; r.campos = { ...r.campos, feito: HOJE }; S.top3 = S.top3.filter((x) => x !== t.id); saveDraft(); });
+      if (valor !== 'waiting') o.estado = valor;
+      const q = valor === 'waiting' ? 'AG' : (t.prioridade || 'P2');
+      if (t.estado === 'done') return tarefa({ acao: 'reabrir', id: t.id, quadrante: q }, `reaberta: "${t.titulo}"`, () => { r.feito = false; r.quadrante = q; });
+      if (valor === 'waiting' || t.estado === 'waiting') { if (t.estado === 'waiting' && !o.prioridade) o.prioridade = ''; return tarefa({ acao: 'mover', id: t.id, quadrante: q }, `"${t.titulo}" → ${q === 'AG' ? 'Aguardando' : q}`, () => { r.quadrante = q; }); }
+      return localmente();
+    }
+    if (campo === 'prioridade') {
+      if (valor && t.estado !== 'waiting' && t.estado !== 'done') return tarefa({ acao: 'mover', id: t.id, quadrante: valor }, `"${t.titulo}" → ${valor}`, () => { r.quadrante = valor; });
+      o.prioridade = valor; return localmente();
+    }
+    o[campo] = valor || null;
+    return localmente();
+  }
+  async function criar(d) {
+    const quadrante = d.estado === 'waiting' ? 'AG' : (d.prioridade || 'P2');
+    const ctx = d.projeto || d.cliente || '';
+    const extra = { estado: d.estado === 'waiting' ? undefined : d.estado, modulo: d.modulo || null, inicio: d.inicio || null, ciclo: d.ciclo || null, pai: d.pai || null, notas: d.notas || '', texto: d.titulo,
+      hist: [{ em: agora(), txt: 'Criada pelo painel' + (d.fonte && d.fonte !== 'manual' ? ' a partir de ' + d.fonte : '') }] };
+    const tmp = 'tmp' + Date.now();
+    LOC.t[tmp] = extra; salvarLoc();
+    const r = await tarefa({ acao: 'criar', texto: d.titulo, quadrante, prazo: d.prazo || undefined, ctx: ctx || undefined, quem: d.quem || undefined },
+      `nova tarefa: ${d.titulo}`, () => { P.todo.push({ id: tmp, texto: d.titulo, feito: false, quadrante, campos: { prazo: d.prazo || undefined, criado: HOJE }, ctx: ctx || null }); });
+    if (r && r.id) remap(tmp, r.id);
+    if (d.estado === 'done' && r && r.id) mudar(T(r.id) || vt({ id: r.id, texto: d.titulo, quadrante, campos: {} }), 'estado', 'done');
+    evento(`Criada: ${d.titulo}`, r && r.id); salvarLoc();
+    return r;
+  }
+
+  // ── Filtros e agrupamento ──
+  function filtrar(ts, f) {
+    const q = (f.texto || '').trim().toLowerCase();
+    return ts.filter((t) => {
+      if (!f.concluidas && !f.estado && t.estado === 'done') return false;
+      if (f.estado && t.estado !== f.estado) return false;
+      if (f.prioridade && t.prioridade !== f.prioridade) return false;
+      if (f.projeto && t.projeto !== f.projeto) return false;
+      if (f.modulo && t.modulo !== f.modulo) return false;
+      if (f.cliente && t.cliente !== f.cliente) return false;
+      if (f.rotulo && !t.temas.includes(f.rotulo)) return false;
+      if (f.ciclo && cicloDe(t) !== f.ciclo) return false;
+      if (f.prazo === 'atrasadas' && !atrasada(t)) return false;
+      if (f.prazo === 'semana' && !(t.prazo && t.prazo <= CIC.fim)) return false;
+      if (f.prazo === 'sem' && t.prazo) return false;
+      if (q && !txt(t.titulo).toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }
+  const bucketPrazo = (t) => !t.prazo ? 'sem' : t.estado !== 'done' && t.prazo < HOJE ? 'atrasada' : t.prazo === HOJE ? 'hoje' : t.prazo <= CIC.fim ? 'semana' : 'depois';
+  const GRUPOS = {
+    estado: { rot: 'Estado', key: (t) => t.estado, ordem: () => ESTADOS.map((e) => e[0]), label: (k) => `${stIco(k)} ${esc(ESTADO[k])}`, campo: 'estado' },
+    prioridade: { rot: 'Prioridade', key: (t) => t.prioridade || '', ordem: () => PRIS.map((p) => p[0]), label: (k) => `${priIco(k)} ${esc(PRI[k])}`, campo: 'prioridade' },
+    projeto: { rot: 'Projeto', key: (t) => t.projeto || '', ordem: () => [...(P.projetos || []).map((p) => p.id), ''], label: (k) => k ? esc(nome(k)) : 'Sem projeto', campo: 'projeto' },
+    cliente: { rot: 'Cliente', key: (t) => t.cliente || '', ordem: () => [...Object.keys(CL()), ''], label: (k) => k ? esc(nome(k)) : 'Sem cliente', campo: 'cliente' },
+    prazo: { rot: 'Prazo', key: bucketPrazo, ordem: () => ['atrasada', 'hoje', 'semana', 'depois', 'sem'], label: (k) => ({ atrasada: '<span class="late-t">Atrasadas</span>', hoje: 'Hoje', semana: 'Até sexta', depois: 'Depois', sem: 'Sem prazo' })[k], campo: null },
+    nenhum: { rot: 'Nenhum', key: () => '_', ordem: () => ['_'], label: () => 'Todas', campo: null }
+  };
+  function agrupar(ts, g, vazios) {
+    const G = GRUPOS[g] || GRUPOS.estado;
+    return G.ordem().map((k) => ({ k, label: G.label(k), itens: ts.filter((t) => G.key(t) === k) })).filter((x) => vazios || x.itens.length);
+  }
+  const ordenar = (ts) => [...ts].sort((a, b) => (a.prioridade || 'P9').localeCompare(b.prioridade || 'P9') || String(a.prazo || '9').localeCompare(String(b.prazo || '9')) || a.titulo.localeCompare(b.titulo));
+
+  // ── Pedaços de interface ──
+  // rótulo curto do ctx: projeto, cliente ou pessoa pelo nome; nota datada (compromisso, reunião) não vira chip
+  function ctxRotulo(t) {
+    if (t.projeto) return nome(t.projeto);
+    if (t.cliente) return nome(t.cliente);
+    if (!t.ctx) return '';
+    if ((P.compromissos || []).some((c) => c.id === t.ctx)) return 'compromisso';
+    if (/^\d{4}-\d{2}-\d{2}-/.test(t.ctx)) return '';
+    return nome(t.ctx);
+  }
+  function metaChips(t) {
+    const sub = filhos(t), bl = bloqueadaPor(t);
+    return [
+      bl.length ? `<span class="blk" title="Bloqueada por ${esc(bl.map((x) => txt(x.titulo)).join('; '))}">BLOQ</span>` : '',
+      sub.length ? `<span class="mini">${sub.filter((x) => x.estado === 'done').length}/${sub.length} sub</span>` : '',
+      t.cliente ? `<span class="chip cli">${esc(nome(t.cliente))}</span>` : !t.projeto && ctxRotulo(t) ? `<span class="chip">${esc(ctxRotulo(t))}</span>` : '',
+      t.prazo ? `<span class="mini ${atrasada(t) ? 'late-t' : ''}">${atrasada(t) ? '!' : ''}${d2(t.prazo)}</span>` : '',
+      t.estado === 'waiting' && t.quem ? `<span class="mini">⏳ ${esc(nome(t.quem))}</span>` : '',
+      S.top3.includes(t.id) ? '<span class="tag risk">TOP 3</span>' : ''
+    ].join('');
+  }
+  const linha = (t) => `<button type="button" class="row ${UI.peek === t.id ? 'sel' : ''} ${pendentes.has(t.id) ? 'pend' : ''}" data-open="${esc(t.id)}" draggable="true" data-drag="${esc(t.id)}">
+      ${priIco(t.prioridade)}${stIco(t.estado)}<span class="tt">${md(t.titulo)}</span><span class="meta">${metaChips(t)}</span></button>`;
+  const cartao = (t, drag) => `<button type="button" class="card ${pendentes.has(t.id) ? 'pend' : ''}" data-open="${esc(t.id)}" ${drag ? `draggable="true" data-drag="${esc(t.id)}"` : ''}>
+      ${t.projeto ? `<span class="sid">${esc(nome(t.projeto))}</span>` : ''}<span class="tt">${md(t.titulo)}</span>
+      <span class="meta">${priIco(t.prioridade)}${stIco(t.estado)}${metaChips(t)}</span></button>`;
+  const opts = (pares, sel) => pares.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(sel ?? '') ? ' selected' : ''}>${esc(l)}</option>`).join('');
+  const optsProj = (sel, vazio = 'Sem projeto') => opts([['', vazio], ...(P.projetos || []).map((p) => [p.id, p.titulo])], sel);
+  const optsCli = (sel, vazio = 'Sem cliente') => opts([['', vazio], ...Object.entries(CL())], sel);
+  const optsCiclo = (sel, vazio = 'Automático (pelo prazo)') => opts([['', vazio], ...CICLOS.map((c) => [c.id, `${c.id} · ${d2(c.inicio)}–${d2(c.fim)}${c.id === CIC.id ? ' (atual)' : ''}`])], sel);
+  const optsMod = (p, sel) => opts([['', 'Sem módulo'], ...modulos(p).map((m) => [m.id, m.titulo])], sel);
+  const LOCAL = '<span class="local" title="Este campo ainda não existe no vault: fica só neste navegador">LOCAL</span>';
+
+  // ── Barra lateral ──
+  function lidaKey(l) { return l.em + '|' + l.txt; }
+  function notifs() {
+    const v = (P.log || []).map((l) => ({ em: l.em, txt: `${l.tipo} · ${l.txt}`, ref: null, vault: true }));
+    return [...LOC.eventos.map((e) => ({ ...e, vault: false })), ...v].sort((a, b) => b.em.localeCompare(a.em)).slice(0, 80);
+  }
+  const naoLida = (l) => !LOC.lidas[lidaKey(l)] && l.em.slice(0, 10) >= addD(HOJE, -1);
+  function side() {
+    const pend = (P.entrada || []).filter((e) => !LOC.ent[e.id]).length;
+    const nl = notifs().filter(naoLida).length;
+    const it = (tela, icone, rot, extra = '', on = UI.tela === tela && !UI.vistaId) => `<button type="button" class="${on ? 'on' : ''}" data-tela="${tela}">${img(icone, on ? '#f8d878' : '#f0f0fc')}<span class="lbl">${rot}</span>${extra}</button>`;
+    const modo = live.escrita ? ['ok', 'VAULT AO VIVO', 'Lendo e gravando no vault pelo servidor local jarvis-escrita'] : live.db ? ['warn', 'RETRATO · FILA', 'Sem servidor local: mudanças vão para a fila e o Claude grava no próximo /checkin'] : ['', 'RETRATO', 'Somente leitura nesta visualização'];
+    $('side').innerHTML = `
+      <div class="brand"><img src="${ico('jarvis', '#f8d878')}" alt="" style="width:24px;height:24px;image-rendering:pixelated">JARVIS</div>
+      <div class="modo ${modo[0]}" title="${esc(modo[2])}">${modo[1]}${confirmado ? ' · DIA CONFIRMADO' : ''}</div>
+      <button type="button" class="searchbtn" data-cmd="1">${img('busca', '#a8b0e0')}<span>Buscar ou comandar</span><kbd>CTRL K</kbd></button>
+      <button type="button" class="btn primary" data-nova="1" style="justify-content:center">+ NOVA TAREFA</button>
+      <nav class="nav" aria-label="Principal">
+        ${it('inicio', 'inicio', 'Início')}
+        ${it('minhas', 'minhas', 'Minhas tarefas')}
+        ${it('entrada', 'entrada', 'Entrada', pend ? `<span class="badge">${pend}</span>` : '')}
+        ${it('notificacoes', 'notif', 'Notificações', nl ? `<span class="badge">${nl}</span>` : '')}
+        <h3>PROJETOS</h3>
+        ${(P.projetos || []).map((p) => { const on = UI.tela === 'projeto' && UI.proj === p.id; const [s] = situacao(p);
+          return `<button type="button" class="${on ? 'on' : ''}" data-proj="${esc(p.id)}"><span class="dot" style="background:${s === 'late' ? 'var(--bad)' : s === 'risk' ? 'var(--gold-2)' : 'var(--ok)'}"></span><span class="lbl">${esc(p.titulo)}</span></button>
+            ${on ? ['geral', 'tarefas', 'modulos'].map((a) => `<button type="button" class="sub ${UI.aba === a ? 'on' : ''}" data-aba="${a}">${({ geral: 'Visão geral', tarefas: 'Tarefas', modulos: 'Módulos' })[a]}</button>`).join('') : ''}`; }).join('') || '<p class="empty" style="padding:0 8px">Nenhum projeto ativo.</p>'}
+        <h3>PLANEJAMENTO</h3>
+        ${it('ciclos', 'ciclo', 'Ciclos', `<span class="mini">${CIC.id}</span>`)}
+        ${it('analises', 'analise', 'Análises')}
+        ${it('paginas', 'pagina', 'Páginas')}
+        <h3>VISÕES SALVAS</h3>
+        ${LOC.visoes.map((v) => `<button type="button" class="${UI.vistaId === v.id ? 'on' : ''}" data-visao="${esc(v.id)}">${img('visao', UI.vistaId === v.id ? '#f8d878' : '#a8b0e0')}<span class="lbl">${esc(v.nome)}</span></button>`).join('') || '<p class="empty" style="padding:0 8px;font-size:14px">Filtre uma lista e use SALVAR VISÃO.</p>'}
+      </nav>`;
+  }
+
+  // ── Cabeçalho ──
+  function top(titulo, extra = '') {
+    $('top').innerHTML = `<div class="top-row">
+      <button type="button" class="btn small menu-btn" data-menu="1" aria-label="Abrir navegação">MENU</button>
+      <div class="crumbs">${titulo}</div>${extra}</div>`;
+  }
+  function vistaTopo(escopo) {
+    const v = UI.vista, f = v.filtros;
+    const L = [['lista', 'LISTA'], ['quadro', 'QUADRO'], ['gantt', 'GANTT'], ['planilha', 'PLANILHA']];
+    const sel = (k, pares) => `<select class="f ${f[k] ? 'on' : ''}" data-filtro="${k}" aria-label="Filtro ${k}">${opts(pares, f[k] || '')}</select>`;
+    const rotulos = [...new Set(TS.flatMap((t) => t.temas))];
+    return `<div class="top-row">
+        <div class="seg" role="group" aria-label="Layout">${L.map(([k, l]) => `<button type="button" class="${v.layout === k ? 'on' : ''}" data-layout="${k}">${l}</button>`).join('')}</div>
+        <label class="chk">Agrupar <select class="f" data-agrupar="1">${opts(Object.entries(GRUPOS).map(([k, g]) => [k, g.rot]), v.agrupar)}</select></label>
+        <span style="flex:1"></span>
+        ${UI.salvando ? `<input class="f" id="nome-visao" placeholder="Nome da visão" aria-label="Nome da visão"><button type="button" class="btn small primary" data-salvar-visao="1">SALVAR</button><button type="button" class="btn small" data-cancelar-visao="1">CANCELAR</button>`
+          : `<button type="button" class="btn small" data-nova-visao="1">SALVAR VISÃO</button>`}
+      </div>
+      <div class="filters">
+        <input class="f" id="busca-lista" data-filtro="texto" placeholder="Filtrar por texto" value="${esc(f.texto || '')}" aria-label="Filtrar por texto">
+        ${sel('estado', [['', 'Estado'], ...ESTADOS])}
+        ${sel('prioridade', [['', 'Prioridade'], ...PRIS.filter((p) => p[0])])}
+        ${escopo === 'projeto' ? (modulos(UI.proj).length ? sel('modulo', [['', 'Módulo'], ...modulos(UI.proj).map((m) => [m.id, m.titulo])]) : '') : sel('projeto', [['', 'Projeto'], ...(P.projetos || []).map((p) => [p.id, p.titulo])])}
+        ${sel('cliente', [['', 'Cliente'], ...Object.entries(CL())])}
+        ${rotulos.length ? sel('rotulo', [['', 'Rótulo'], ...rotulos.map((r) => [r, r])]) : ''}
+        ${escopo === 'ciclo' ? '' : sel('ciclo', [['', 'Ciclo'], ...CICLOS.map((c) => [c.id, c.id])])}
+        ${sel('prazo', [['', 'Prazo'], ['atrasadas', 'Atrasadas'], ['semana', 'Até sexta'], ['sem', 'Sem prazo']])}
+        <label class="chk"><input type="checkbox" data-filtro="concluidas" ${f.concluidas ? 'checked' : ''}> Concluídas</label>
+        ${Object.keys(f).some((k) => f[k]) ? '<button type="button" class="btn small" data-limpar="1">LIMPAR</button>' : ''}
+      </div>`;
+  }
+
+  // ── Visões de tarefas ──
+  function tarefasDoEscopo() {
+    let ts = TS;
+    if (UI.tela === 'projeto') ts = ts.filter((t) => t.projeto === UI.proj);
+    if (UI.tela === 'ciclos') ts = ts.filter((t) => cicloDe(t) === UI.ciclo);
+    return filtrar(ts, UI.vista.filtros);
+  }
+  function corpoTarefas() {
+    const ts = ordenar(tarefasDoEscopo()), v = UI.vista;
+    if (!ts.length) return `<div class="box"><p class="empty">Nenhuma tarefa com esses filtros. Limpe os filtros ou crie uma tarefa (atalho C).</p></div>`;
+    if (v.layout === 'quadro') return quadro(ts);
+    if (v.layout === 'gantt') return gantt(ts);
+    if (v.layout === 'planilha') return planilha(ts);
+    return agrupar(ts, v.agrupar).map((g) => {
+      const k = v.agrupar + ':' + g.k, fechado = UI.colapsados[k];
+      return `<div class="group"><button type="button" class="group-h" data-colapsar="${esc(k)}" aria-expanded="${!fechado}">${g.label}<span class="n">${g.itens.length}</span><span style="margin-left:auto" class="mini">${fechado ? '▸' : '▾'}</span></button>
+        ${fechado ? '' : g.itens.map(linha).join('')}</div>`;
+    }).join('');
+  }
+  function quadro(ts) {
+    const g = UI.vista.agrupar, campo = GRUPOS[g]?.campo;
+    return `${campo ? '' : '<p class="empty">Agrupado por prazo: arrastar não muda nada. Agrupe por estado, prioridade, projeto ou cliente para mover.</p>'}
+      <div class="kanban">${agrupar(ts, g, g === 'estado' || g === 'prioridade').map((c) => `<div class="kcol" ${campo ? `data-col="${esc(c.k)}" data-campo="${campo}"` : ''}>
+        <div class="kcol-h">${c.label}<span class="n">${c.itens.length}</span></div>
+        ${c.itens.map((t) => cartao(t, !!campo)).join('') || '<p class="empty" style="padding:4px">Solte aqui</p>'}</div>`).join('')}</div>`;
+  }
+  function gantt(ts) {
+    const ini = (t) => t.inicio || t.criado;
+    const comData = ts.filter((t) => t.prazo);
+    const projs = UI.tela === 'projeto' ? [PJ(UI.proj)].filter(Boolean) : (P.projetos || []).filter((p) => comData.some((t) => t.projeto === p.id));
+    const datas = [HOJE, ...comData.flatMap((t) => [ini(t), t.prazo]), ...projs.flatMap((p) => [p.inicio, p.prazo])].filter(Boolean).sort();
+    if (!comData.length) return '<div class="box"><p class="empty">Nenhuma tarefa com prazo nesses filtros: o Gantt precisa de prazo.</p></div>';
+    const a = semana(datas[0]).inicio; let z = addD(semana(datas[datas.length - 1]).inicio, 6);
+    if (dias(a, z) < 34) z = addD(a, 34);
+    const N = dias(a, z) + 1, W = 22, x = (iso) => dias(a, iso) * W;
+    const barra = (t) => {
+      const i0 = ini(t);
+      if (!i0 || i0 > t.prazo) return `<button type="button" class="g-ms" data-open="${esc(t.id)}" data-tip="${esc(txt(t.titulo) + ' · prazo ' + d2(t.prazo))}" style="left:${x(t.prazo) + 4}px;background:${COR[t.estado]}" aria-label="${esc(txt(t.titulo))}"></button>`;
+      return `<button type="button" class="g-gb" data-open="${esc(t.id)}" data-tip="${esc(txt(t.titulo) + ' · ' + d2(i0) + '–' + d2(t.prazo) + ' · ' + ESTADO[t.estado])}" style="left:${x(i0)}px;width:${(dias(i0, t.prazo) + 1) * W}px;background:${COR[t.estado]}" aria-label="${esc(txt(t.titulo))}"></button>`;
+    };
+    let rows = '';
+    const lg = (cls, lbl, cell) => { rows += `<div class="g-lbl ${cls}">${lbl}</div><div class="g-cell">${cell}</div>`; };
+    const lt = (t) => lg('task', `<button type="button" class="linkrow" data-open="${esc(t.id)}" style="padding:0">${stIco(t.estado)}<span class="tt">${md(t.titulo)}</span></button>`, barra(t));
+    for (const p of projs) {
+      lg('proj', esc(p.titulo), p.inicio && p.prazo ? `<span class="g-gb projbar" style="left:${x(p.inicio)}px;width:${(dias(p.inicio, p.prazo) + 1) * W}px" data-tip="${esc(p.titulo + ' · ' + d2(p.inicio) + '–' + d2(p.prazo))}"></span>` : '');
+      for (const m of [...modulos(p.id), { id: null, titulo: 'Sem módulo' }]) {
+        const tm = comData.filter((t) => t.projeto === p.id && (t.modulo || null) === m.id);
+        if (!tm.length && !m.id) continue;
+        if (modulos(p.id).length) lg('mod', esc(m.titulo), m.inicio && m.prazo ? `<span class="g-gb modbar" style="left:${x(m.inicio)}px;width:${(dias(m.inicio, m.prazo) + 1) * W}px" data-tip="${esc('Módulo ' + m.titulo + ' · ' + d2(m.inicio) + '–' + d2(m.prazo))}"></span>` : '');
+        tm.forEach(lt);
+      }
+    }
+    const soltas = comData.filter((t) => !t.projeto);
+    if (soltas.length && UI.tela !== 'projeto') { lg('proj', 'Sem projeto', ''); soltas.forEach(lt); }
+    let head = '';
+    for (let i = 0; i < N; i += 7) { const d = addD(a, i); head += `<span style="position:absolute;left:${i * W + 4}px;bottom:6px">${semana(d).id} ${d2(d)}</span>`; }
+    const grade = `repeating-linear-gradient(90deg, transparent 0 ${7 * W - 1}px, var(--line) ${7 * W - 1}px ${7 * W}px)`;
+    return `<div class="gantt-wrap"><div class="gantt" style="grid-template-columns:240px ${N * W}px">
+        <div class="g-lbl proj" style="top:0;z-index:4;background:var(--side)">PROJETO / TAREFA</div><div class="g-head">${head}</div>
+        ${rows.replace(/class="g-cell"/g, `class="g-cell" style="background:${grade}"`)}
+        <div class="g-today" style="left:${240 + x(HOJE) + W / 2}px"></div>
+      </div></div>
+      <p class="empty">Barra = início → prazo (início local ou data de criação) · losango = só prazo · linha vermelha = hoje (${d2(HOJE)}). Sem prazo não aparece.</p>`;
+  }
+  function planilha(ts) {
+    const cel = (t, c, html) => `<td>${html}</td>`;
+    return `<div class="sheet-wrap"><table class="sheet"><thead><tr><th style="min-width:280px">TÍTULO</th><th>ESTADO</th><th>PRIORIDADE</th><th>PROJETO</th><th>CLIENTE</th><th>PRAZO</th><th>MÓDULO ${LOCAL}</th><th>CICLO ${LOCAL}</th><th>INÍCIO ${LOCAL}</th></tr></thead><tbody>
+      ${ts.map((t) => `<tr>
+        ${cel(t, 'titulo', `<input class="f" data-cel="titulo" data-id="${esc(t.id)}" value="${esc(t.titulo)}" aria-label="Título">`)}
+        ${cel(t, 'estado', `<select class="f" data-cel="estado" data-id="${esc(t.id)}" aria-label="Estado">${opts(ESTADOS, t.estado)}</select>`)}
+        ${cel(t, 'prioridade', `<select class="f" data-cel="prioridade" data-id="${esc(t.id)}" aria-label="Prioridade">${opts(PRIS, t.prioridade)}</select>`)}
+        ${cel(t, 'projeto', `<select class="f" data-cel="projeto" data-id="${esc(t.id)}" aria-label="Projeto">${optsProj(t.projeto, '—')}</select>`)}
+        ${cel(t, 'cliente', `<select class="f" data-cel="cliente" data-id="${esc(t.id)}" aria-label="Cliente" ${t.projeto ? 'disabled title="Vem do projeto"' : ''}>${optsCli(t.cliente, '—')}</select>`)}
+        ${cel(t, 'prazo', `<input class="f" type="date" data-cel="prazo" data-id="${esc(t.id)}" value="${esc(t.prazo || '')}" aria-label="Prazo">`)}
+        ${cel(t, 'modulo', `<select class="f" data-cel="modulo" data-id="${esc(t.id)}" aria-label="Módulo" ${t.projeto && modulos(t.projeto).length ? '' : 'disabled'}>${optsMod(t.projeto, t.modulo)}</select>`)}
+        ${cel(t, 'ciclo', `<select class="f" data-cel="ciclo" data-id="${esc(t.id)}" aria-label="Ciclo">${optsCiclo(t.ciclo, 'Auto')}</select>`)}
+        ${cel(t, 'inicio', `<input class="f" type="date" data-cel="inicio" data-id="${esc(t.id)}" value="${esc(t.inicio || '')}" aria-label="Início">`)}
+      </tr>`).join('')}</tbody></table></div>
+      <p class="empty">Título, estado (feito/aguardando), prioridade, projeto, cliente e prazo gravam no TODO.md. Colunas LOCAL ficam neste navegador.</p>`;
+  }
+  function telaTarefas(titulo, escopo) {
+    top(titulo, `<button type="button" class="btn primary" data-nova="1">+ TAREFA</button>`);
+    $('top').insertAdjacentHTML('beforeend', vistaTopo(escopo));
+    return `<div id="resultado" style="display:grid;gap:12px">${corpoTarefas()}</div>`;
+  }
+
+  // ── Início: check-in do dia + visão do todo ──
+  function clashes(b) { const a1 = toMin(b.inicio), a2 = toMin(b.fim); return agHoje().some((e) => toMin(e.inicio) < a2 && a1 < toMin(e.fim)); }
+  function timeline() {
+    const ini = toMin((D.expediente && D.expediente.inicio) || '09:00');
+    const pts = [ini, toMin(S.fim), ...agHoje().flatMap((e) => [toMin(e.inicio), toMin(e.fim)]), ...S.blocos.flatMap((b) => [toMin(b.inicio), toMin(b.fim)])];
+    const st = Math.floor(Math.min(...pts) / 60) * 60, en = Math.ceil(Math.max(...pts) / 60) * 60;
+    const pct = (m) => ((m - st) / (en - st) * 100).toFixed(3) + '%';
+    const w = (a, b) => ((b - a) / (en - st) * 100).toFixed(3) + '%';
+    let h = '';
+    for (let m = st; m <= en; m += 60) h += `<div class="tl-hour" style="left:${pct(m)}">${fmt(m)}</div>`;
+    h += '<div class="tl-lane m">';
+    for (const e of agHoje()) h += `<div class="tl-ev ${e.tipo === 'client' ? 'client' : ''}${toMin(e.inicio) >= toMin(S.fim) ? ' out' : ''}" style="left:${pct(toMin(e.inicio))};width:${w(toMin(e.inicio), toMin(e.fim))}" data-tip="${esc(e.inicio + '–' + e.fim + ' ' + e.titulo)}"><b>${esc(e.titulo)}</b><small>${esc(e.inicio)}</small></div>`;
+    h += '</div><div class="tl-lane f">';
+    const ocup = [...agHoje(), ...S.blocos].map((x) => [toMin(x.inicio), toMin(x.fim)]);
+    for (let m = Math.max(st, ini); m + 30 <= Math.min(en, toMin(S.fim)); m += 30) {
+      if (!ocup.some(([a, b]) => a < m + 30 && m < b)) h += `<button type="button" class="tl-gap" data-gap="${m}" style="left:${pct(m)};width:${w(m, m + 30)}" aria-label="Criar bloco ${fmt(m)}–${fmt(m + 30)}" data-tip="Criar bloco ${fmt(m)}–${fmt(m + 30)}"></button>`;
+    }
+    S.blocos.forEach((b, i) => {
+      if (toMin(b.fim) <= toMin(b.inicio)) return;
+      h += `<button type="button" class="tl-ev foco${clashes(b) ? ' clash' : ''}" data-bloco="${i}" style="left:${pct(toMin(b.inicio))};width:${w(toMin(b.inicio), toMin(b.fim))}" data-tip="${esc(b.inicio + '–' + b.fim + ' ' + b.rotulo + ' (clique para editar)')}"><b>${esc(b.rotulo || 'bloco')}</b><small>${esc(b.inicio)}–${esc(b.fim)}</small></button>`;
+    });
+    h += '</div>';
+    h += `<div class="tl-end" style="left:${pct(toMin(S.fim))}"><span>FIM ${esc(S.fim)}</span></div>`;
+    const nowP = SP({ hour: '2-digit', minute: '2-digit' }), nowIso = SP({ year: 'numeric', month: '2-digit', day: '2-digit' });
+    if (nowIso === HOJE && toMin(nowP) > st && toMin(nowP) < en) h += `<div class="tl-now" style="left:${pct(toMin(nowP))}"><span>AGORA ${nowP}</span></div>`;
+    const livre = Math.max(0, toMin(S.fim) - ini - agHoje().reduce((s, e) => s + Math.max(0, Math.min(toMin(e.fim), toMin(S.fim)) - Math.max(toMin(e.inicio), ini)), 0));
+    return { html: h, sub: `${agHoje().length} reunião(ões) · ${Math.floor(livre / 60)}h${String(livre % 60).padStart(2, '0')} livres até ${S.fim} · ${S.blocos.length} bloco(s)` };
+  }
+  function riscosCalc() {
+    const r = [];
+    for (const b of S.blocos) if (clashes(b)) r.push(['h', `Bloco "${b.rotulo}" (${b.inicio}–${b.fim}) bate com reunião`]);
+    for (const e of agHoje()) if (toMin(e.fim) > toMin(S.fim)) r.push(['h', `"${e.titulo}" termina ${e.fim}, depois do seu fim (${S.fim})`]);
+    const venc = TS.filter(atrasada).filter((t) => t.estado !== 'waiting');
+    if (venc.length) r.push(['h', `${venc.length} tarefa(s) vencida(s): ${venc.slice(0, 2).map((t) => txt(t.titulo)).join('; ')}${venc.length > 2 ? '…' : ''}`]);
+    const cob = TS.filter((t) => t.estado === 'waiting' && t.cobrar && t.cobrar <= HOJE);
+    if (cob.length) r.push(['', `Cobrar hoje: ${cob.map((t) => txt(t.titulo)).join('; ')}`]);
+    const p1 = TS.filter((t) => t.estado !== 'done' && t.prioridade === 'P1').length;
+    if (p1 > 7) r.push(['h', `P1 com ${p1} itens: sobrecarga`]);
+    for (const x of prop.riscos || []) r.push(['', x]);
+    return r;
+  }
+  function slots() {
+    let h = '';
+    for (let i = 0; i < 3; i++) {
+      const t = T(S.top3[i]);
+      if (!t) { h += `<li class="slot empty" data-slot="${i}"><span class="n">${i + 1}</span><span>Arraste uma tarefa para cá ou use “Pôr no Top 3” no detalhe</span></li>`; continue; }
+      const cur = S.blocos.findIndex((b) => b.tarefa === t.id);
+      h += `<li class="slot" data-slot="${i}"><span class="n">${i + 1}</span><div><div class="t" data-open="${esc(t.id)}">${md(t.titulo)}</div>
+        <div class="m">${esc(t.prioridade || ESTADO[t.estado])}${ctxRotulo(t) ? ' · ' + esc(ctxRotulo(t)) : ''}${t.prazo ? ' · prazo ' + d2(t.prazo) : ''}</div>
+        <select class="f" data-bl="${esc(t.id)}" aria-label="Bloco para esta tarefa"><option value="">sem bloco</option>${S.blocos.map((b, j) => `<option value="${j}"${j === cur ? ' selected' : ''}>${esc(b.inicio)}–${esc(b.fim)} · ${esc(b.rotulo)}</option>`).join('')}</select></div>
+        <div style="display:flex;gap:4px"><button class="ic" type="button" data-up="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Subir">↑</button><button class="ic" type="button" data-out="${i}" aria-label="Tirar do Top 3">✕</button></div></li>`;
+    }
+    return h;
+  }
+  function semanaHtml() {
+    const ds = []; let d = HOJE;
+    while (ds.length < 5) { if (dowN(d) !== 0 && dowN(d) !== 6) ds.push(d); d = addD(d, 1); }
+    return ds.map((x) => {
+      const its = [];
+      for (const e of A.filter((e) => (e.data || HOJE) === x)) its.push(`<div class="it${e.tipo === 'client' ? ' cl' : ''}">${esc(e.inicio)} ${esc(e.titulo)}</div>`);
+      for (const t of TS.filter((t) => t.estado !== 'done' && t.prazo === x)) its.push(`<div class="it dl" data-open="${esc(t.id)}" style="cursor:pointer">⏱ ${md(t.titulo)}</div>`);
+      for (const c of (P.compromissos || []).filter((c) => c.prazo === x)) its.push(`<div class="it dl">${esc(nome(c.assumido_por))}: ${esc(c.oque)}</div>`);
+      for (const p of (P.projetos || []).filter((p) => p.prazo === x)) its.push(`<div class="it dl">▲ ${esc(p.titulo)}</div>`);
+      return `<div class="day${x === HOJE ? ' today' : ''}"><div class="h"><span>${DOW[dowN(x)].toUpperCase()}</span><span>${d2(x)}</span></div>${its.join('') || '<div class="mini">—</div>'}</div>`;
+    }).join('');
+  }
+  function pessoasHtml() {
+    const map = new Map();
+    const add = (p, k, html) => { if (!p) return; if (!map.has(p)) map.set(p, { deve: [], devo: [] }); map.get(p)[k].push(html); };
+    for (const t of TS.filter((t) => t.estado === 'waiting')) add(t.quem || 'sem-dono', 'deve', `${t.cobrar && t.cobrar <= HOJE ? '<span class="tag late">COBRAR</span> ' : ''}${md(t.titulo)}`);
+    const noTodo = new Set(TS.filter((t) => t.estado !== 'done').map((t) => t.ctx).filter(Boolean));
+    for (const c of (P.compromissos || []).filter((c) => !noTodo.has(c.id))) {
+      const tx = `${c.prazo && c.prazo < HOJE ? '<span class="tag late">VENCIDO</span> ' : ''}${md(c.oque)}${c.prazo ? ' <span class="mini">' + d2(c.prazo) + '</span>' : ''}`;
+      if (c.assumido_por === ME) add(c.cliente || 'você', 'devo', tx); else add(c.assumido_por, 'deve', tx);
+    }
+    const arr = [...map.entries()].sort((a, b) => (b[1].deve.length + b[1].devo.length) - (a[1].deve.length + a[1].devo.length));
+    return arr.map(([p, v]) => `<div class="person"><div class="nm"><span>${esc(nome(p).toUpperCase())}</span><span>${v.deve.length + v.devo.length}</span></div><ul>${v.deve.map((x) => '<li>te deve: ' + x + '</li>').join('')}${v.devo.map((x) => '<li>você deve: ' + x + '</li>').join('')}</ul></div>`).join('') || '<p class="empty">Ninguém te deve nada registrado.</p>';
+  }
+  function notasHtml() {
+    const raw = (P.daily && P.daily.anotacoes) || '';
+    const ls = raw.split('\n').filter((l) => /^- /.test(l)).map((l) => l.slice(2));
+    return ls.map((l) => `<li>${md(l)}</li>`).join('') || '<li class="mini">Nada anotado hoje.</li>';
+  }
+  function inicio() {
+    top(`<span>${esc((D.diaSemana || dow(HOJE)).toUpperCase())}</span> ${d2(HOJE)} · INÍCIO`,
+      `<label class="chk" for="fim">fico até <input class="f" type="time" id="fim" step="900" value="${esc(S.fim)}"></label>
+       <button type="button" class="btn small" data-reload="1">RECARREGAR</button>
+       <button type="button" class="btn primary" id="b-confirm" data-confirmar="1">${confirmado ? 'ATUALIZAR DIA' : 'CONFIRMAR DIA'}</button>`);
+    const tl = timeline();
+    const atras = ordenar(TS.filter(atrasada).filter((t) => t.estado !== 'waiting'));
+    const cobrar = TS.filter((t) => t.estado === 'waiting' && t.cobrar && t.cobrar <= HOJE);
+    const devem = (P.compromissos || []).filter((c) => c.assumido_por !== ME && c.prazo && c.prazo < HOJE);
+    const risco = (P.projetos || []).map((p) => [p, situacao(p)]).filter(([, s]) => s[0] !== 'ok');
+    const cic = TS.filter((t) => cicloDe(t) === CIC.id), pc = progresso(cic);
+    const pend = (P.entrada || []).filter((e) => !LOC.ent[e.id]);
+    return `
+      <section class="box" aria-labelledby="t-hoje" style="display:grid;gap:12px">
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px"><h2 id="t-hoje" style="margin:0">HOJE · CHECK-IN ${confirmado ? '<span class="tag ok">CONFIRMADO ' + esc(String(confirmado).slice(11, 16)) + '</span>' : '<span class="tag risk">A CONFIRMAR</span>'}</h2><span class="mini">${esc(tl.sub)}</span></div>
+        <textarea class="intent" id="intencao" rows="1" placeholder="O que faria o dia valer a pena?" aria-label="Intenção do dia">${esc(S.intencao)}</textarea>
+        <div class="timeline-wrap"><div class="timeline">${tl.html}</div></div>
+        <div class="legend"><span><i style="background:var(--meet)"></i>reunião</span><span><i style="background:var(--client)"></i>com cliente</span><span><i style="background:var(--s-todo)"></i>bloco de foco (clique para editar)</span><span><i style="background:var(--bad)"></i>conflito</span><span>clique num horário livre da faixa de baixo para criar um bloco</span></div>
+        <div class="dayband">
+          <div><h2>TOP 3</h2><ol class="top3">${slots()}</ol></div>
+          <div><h2>RISCOS</h2><ul class="risks">${riscosCalc().map(([k, t]) => `<li class="risk ${k}">${esc(t)}</li>`).join('') || '<li class="mini">Nenhum risco à vista.</li>'}</ul></div>
+        </div>
+      </section>
+      <div class="grid2">
+        <section class="box" aria-labelledby="t-cl" style="display:grid;gap:10px;align-content:start">
+          <h2 id="t-cl" style="margin:0">CLAUDE ${live.sample ? '<span class="tag ok">DISPONÍVEL</span>' : '<span class="tag mut">INDISPONÍVEL AQUI</span>'}</h2>
+          <div class="quick"><button class="btn small" type="button" data-q="plano">MONTAR MEU DIA</button><button class="btn small" type="button" data-q="cobrar">O QUE COBRAR HOJE?</button><button class="btn small" type="button" data-q="semana">COMO ESTÁ A SEMANA?</button></div>
+          <div class="msgs" id="msgs" aria-live="polite"></div>
+          <div class="ask"><textarea class="f" id="ask" rows="2" placeholder="Pergunte ou peça uma mudança no plano" aria-label="Pergunta ao Claude"></textarea><button class="btn primary" id="b-ask" type="button" data-ask="1">ENVIAR</button></div>
+        </section>
+        <section class="box" aria-labelledby="t-nota" style="display:grid;gap:10px;align-content:start">
+          <h2 id="t-nota" style="margin:0">ANOTAÇÕES DO DIA <span class="mini">vão para o Daily</span></h2>
+          <ul class="notes">${notasHtml()}</ul>
+          <div class="inline"><input class="f" id="nota" placeholder="Anotar (Enter)" aria-label="Anotação"><button class="btn small" type="button" data-anotar="1">ANOTAR</button></div>
+          <div class="inline"><input class="f" id="captura" placeholder="Capturar ideia no Inbox (Enter)" aria-label="Captura"><button class="btn small" type="button" data-capturar="1">CAPTURAR</button></div>
+          ${copiaTxt.length ? `<div style="display:grid;gap:6px"><p class="empty" style="color:var(--bad)">Sem gravação nesta visualização. Copie e cole no chat do Claude:</p><pre class="copy" id="copy-txt">${esc(copiaTxt.join('\n'))}</pre><button class="btn small" type="button" data-copiar="1">COPIAR</button></div>` : ''}
+        </section>
+      </div>
+      <section class="box"><h2>SEMANA</h2><div class="week">${semanaHtml()}</div></section>
+      <div class="grid2">
+        <div class="box"><h2 style="color:var(--bad)">ATRASADAS · ${atras.length}</h2>${atras.length ? `<div class="group" style="border:0">${atras.map(linha).join('')}</div>` : '<p class="empty">Nenhuma atrasada.</p>'}</div>
+        <div class="box"><h2>COBRAR HOJE · ${cobrar.length + devem.length}</h2>
+          ${cobrar.length || devem.length ? `<ul style="list-style:none;margin:0;padding:0;display:grid;gap:8px">
+            ${cobrar.map((t) => `<li><button type="button" class="linkrow" data-open="${esc(t.id)}">${stIco(t.estado)}<span class="tt">${esc(nome(t.quem))}: ${md(t.titulo)}</span></button></li>`).join('')}
+            ${devem.map((c) => `<li class="muted">${esc(nome(c.assumido_por))} deve “${esc(c.oque)}”${c.cliente ? ' (' + esc(nome(c.cliente)) + ')' : ''} · venceu ${d2(c.prazo)}</li>`).join('')}</ul>` : '<p class="empty">Ninguém para cobrar hoje.</p>'}
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="box"><h2>CICLO ${CIC.id} · ${d2(CIC.inicio)}–${d2(CIC.fim)}</h2>
+          <p style="margin:0 0 8px">${pc.f} de ${pc.n} tarefas da semana feitas</p>
+          <div class="bar" role="img" aria-label="${pc.pct}% do ciclo concluído"><i style="width:${pc.pct}%"></i></div>
+          <p style="margin:10px 0 0"><button type="button" class="btn small" data-tela="ciclos">ABRIR CICLO</button></p></div>
+        <div class="box"><h2>PROJETOS QUE PEDEM ATENÇÃO</h2>
+          ${risco.length ? risco.map(([p, s]) => { const pr = progresso(TS.filter((t) => t.projeto === p.id));
+            return `<button type="button" class="linkrow" data-proj="${esc(p.id)}" style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;padding:6px 0"><span class="tt">${esc(p.titulo)}</span><span class="tag ${s[0]}">${s[1]}</span><span class="bar" style="grid-column:1/-1"><i style="width:${pr.pct}%"></i></span><span class="mini">${pr.f}/${pr.n} feitas${p.prazo ? ' · prazo ' + d2(p.prazo) : ''}</span></button>`; }).join('') : '<p class="empty">Todos os projetos em dia.</p>'}</div>
+      </div>
+      <div class="grid2">
+        <div class="box"><h2>PESSOAS</h2>${pessoasHtml()}</div>
+        <div class="box"><h2>ENTRADA · ${pend.length} NO INBOX</h2>
+          ${pend.slice(0, 4).map((e) => `<p style="margin:0 0 6px"><span class="chip">${esc(FONTES[e.fonte] || e.fonte)}</span> ${esc(e.titulo)}</p>`).join('') || '<p class="empty">Inbox vazio.</p>'}
+          ${pend.length ? '<p style="margin:8px 0 0"><button type="button" class="btn small" data-tela="entrada">TRIAR</button></p>' : ''}</div>
+      </div>`;
+  }
+
+  // ── Outras telas ──
+  function entrada() {
+    top('ENTRADA');
+    const its = (P.entrada || []).filter((e) => UI.verTriados ? LOC.ent[e.id] : !LOC.ent[e.id]);
+    return `<div class="top-row"><p class="empty" style="flex:1">O que está no Inbox esperando o /ingest. Aceitar cria a tarefa no TODO já preenchida. Adiar e arquivar marcam só aqui ${LOCAL}: o arquivo continua no Inbox até o /ingest.</p>
+        <button type="button" class="btn small" data-ver-triados="1">${UI.verTriados ? 'VER PENDENTES' : 'VER TRIADOS'}</button></div>
+      ${its.length ? its.map((e) => { const st = LOC.ent[e.id]; return `<div class="box" style="display:grid;gap:8px">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span class="chip">${esc(FONTES[e.fonte] || e.fonte)}</span><span class="mini">${esc(e.em)}</span><span class="mini">${esc(e.arquivo)}</span>${st ? `<span class="tag ${st === 'aceito' ? 'ok' : 'risk'}">${esc(st.toUpperCase())}</span>` : ''}</div>
+        <div style="font-weight:600;font-size:18px">${md(e.titulo)}</div>${e.resumo ? `<div class="muted">${md(e.resumo)}</div>` : ''}
+        <div class="inline">${!st ? `<button type="button" class="btn small primary" data-aceitar="${esc(e.id)}">ACEITAR</button><button type="button" class="btn small" data-entrada="${esc(e.id)}" data-st="adiado">ADIAR</button><button type="button" class="btn small" data-entrada="${esc(e.id)}" data-st="arquivado">ARQUIVAR</button>`
+          : `<button type="button" class="btn small" data-entrada="${esc(e.id)}" data-st="">VOLTAR PARA PENDENTE</button>`}</div>
+      </div>`; }).join('') : `<div class="box"><p class="empty">${UI.verTriados ? 'Nada triado ainda.' : 'Inbox zerado.'}</p></div>`}`;
+  }
+  function notificacoes() {
+    top('NOTIFICAÇÕES', `<button type="button" class="btn small" data-lidas="1">MARCAR TODAS COMO LIDAS</button>`);
+    const ls = notifs();
+    return `<p class="empty">Entradas do log.md do vault e o que você mudou neste painel.</p><div class="box" style="padding:0">${ls.map((l, i) => `<button type="button" class="row" style="grid-template-columns:12px 120px minmax(0,1fr) auto" data-notif="${i}">
+        <span class="dot" style="background:${naoLida(l) ? 'var(--gold)' : 'transparent'};border-color:${naoLida(l) ? 'var(--shadow)' : 'var(--line)'}"></span><span class="mini">${esc(l.em)}</span><span class="tt" style="white-space:normal">${md(l.txt)}</span><span class="mini">${l.vault ? 'vault' : 'painel'}</span></button>`).join('') || '<p class="empty" style="padding:14px">Sem novidades.</p>'}</div>`;
+  }
+  function projeto() {
+    const p = PJ(UI.proj); if (!p) { UI.tela = 'inicio'; return inicio(); }
+    const ts = TS.filter((t) => t.projeto === p.id), pr = progresso(ts), s = situacao(p);
+    const crumbs = `<span>PROJETOS /</span> ${esc(p.titulo.toUpperCase())}`;
+    if (UI.aba === 'tarefas') return telaTarefas(crumbs + ' <span>/ TAREFAS</span>', 'projeto');
+    top(crumbs, `<div class="seg">${['geral', 'tarefas', 'modulos'].map((a) => `<button type="button" class="${UI.aba === a ? 'on' : ''}" data-aba="${a}">${({ geral: 'VISÃO GERAL', tarefas: 'TAREFAS', modulos: 'MÓDULOS' })[a]}</button>`).join('')}</div><button type="button" class="btn primary" data-nova="1">+ TAREFA</button>`);
+    const cab = `<div class="box" style="display:grid;gap:10px">
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center"><span class="tag ${s[0]}">${s[1]}</span>${p.cliente ? `<span class="chip cli">${esc(nome(p.cliente))}</span>` : ''}${p.status ? `<span class="chip">${esc(p.status)}</span>` : ''}<span class="mini">${p.inicio ? d2(p.inicio) + ' → ' : ''}${p.prazo ? d2(p.prazo) + ' · ' + (p.prazo < HOJE ? `<span class="late-t">${dias(p.prazo, HOJE)} dia(s) após o prazo</span>` : dias(HOJE, p.prazo) + ' dia(s) até o prazo') : 'sem prazo'}</span></div>
+        <div class="bar" role="img" aria-label="${pr.pct}% concluído"><i style="width:${pr.pct}%"></i></div>
+        <div class="legend">${ESTADOS.map(([e, l]) => `<span>${stIco(e)} ${esc(l)} ${ts.filter((t) => t.estado === e).length}</span>`).join('')}<span><b>${pr.pct}%</b> feito (tarefas com ctx [[${esc(p.id)}]])</span></div></div>`;
+    const ms = modulos(p.id);
+    if (UI.aba === 'modulos') return cab + `<div class="box" style="display:grid;gap:10px"><h2 style="margin:0">MÓDULOS ${LOCAL}</h2>
+        <p class="empty">Fases do projeto. Ainda não existem no vault: ficam neste navegador.</p>
+        <div class="inline"><input class="f" id="mod-tit" placeholder="Nome do módulo" aria-label="Nome do módulo"><input class="f" type="date" id="mod-ini" aria-label="Início do módulo" style="flex:0 1 160px"><input class="f" type="date" id="mod-fim" aria-label="Prazo do módulo" style="flex:0 1 160px"><button type="button" class="btn small primary" data-add-mod="1">ADICIONAR</button></div></div>
+      ${ms.length ? `<div class="grid2">${ms.map((m) => { const tm = ts.filter((t) => t.modulo === m.id), mp = progresso(tm);
+        return `<div class="box" style="display:grid;gap:8px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><b>${esc(m.titulo)}</b><span class="mini">${m.inicio ? d2(m.inicio) : '?'}–${m.prazo ? d2(m.prazo) : '?'}</span></div>
+          <div class="bar"><i style="width:${mp.pct}%"></i></div><span class="mini">${mp.f}/${mp.n} feitas${tm.some(atrasada) ? ' · <span class="late-t">tem atraso</span>' : ''}</span>
+          <button type="button" class="btn small" data-ver-modulo="${esc(m.id)}">VER TAREFAS</button></div>`; }).join('')}</div>` : ''}`;
+    const proximas = ordenar(ts.filter((t) => t.estado !== 'done' && t.prazo)).slice(0, 6);
+    const pags = (P.paginas || []).filter((g) => (g.links || []).includes(p.id) || String(g.corpo).includes('[[' + p.id));
+    return cab + `<div class="grid2">
+        <div class="box"><h2>PRÓXIMAS ENTREGAS</h2>${proximas.length ? `<div class="group" style="border:0">${proximas.map(linha).join('')}</div>` : '<p class="empty">Sem entregas com prazo.</p>'}</div>
+        <div class="box"><h2>MÓDULOS</h2>${ms.map((m) => { const mp = progresso(ts.filter((t) => t.modulo === m.id)); return `<div style="display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:8px;align-items:center;margin-bottom:8px"><span>${esc(m.titulo)}</span><span class="mini" style="text-align:right">${mp.pct}%</span><span class="bar" style="grid-column:1/-1"><i style="width:${mp.pct}%"></i></span></div>`; }).join('') || '<p class="empty">Sem módulos. Crie na aba MÓDULOS.</p>'}</div>
+      </div>
+      <div class="box"><h2>DECISÕES E PÁGINAS LIGADAS</h2>${pags.length ? pags.map((g) => `<button type="button" class="linkrow" data-pagina="${esc(g.id)}">${img('pagina', '#a8b0e0')}<span class="tt">${esc(g.titulo)}</span><span class="chip">${esc(g.tipo)}</span><span class="mini">${d2(g.data)}</span></button>`).join('') : '<p class="empty">Nada recente ligado a este projeto.</p>'}</div>`;
+  }
+  function ciclos() {
+    const c = CICLOS.find((x) => x.id === UI.ciclo) || CIC;
+    const lista = `<div class="box" style="padding:0">${CICLOS.map((x) => { const ts = TS.filter((t) => cicloDe(t) === x.id), pr = progresso(ts);
+      const st = x.fim < HOJE ? 'Encerrado' : x.inicio > HOJE ? 'Próximo' : 'Atual';
+      return `<button type="button" class="row ${x.id === c.id ? 'sel' : ''}" style="grid-template-columns:52px 110px minmax(0,1fr) 110px" data-ciclo="${x.id}"><span class="sid">${x.id}</span><span class="mini">${d2(x.inicio)}–${d2(x.fim)}</span><span class="bar"><i style="width:${pr.pct}%"></i></span><span class="mini" style="text-align:right">${st} · ${pr.f}/${pr.n}</span></button>`; }).join('')}</div>`;
+    const ts = TS.filter((t) => cicloDe(t) === c.id);
+    const corpo = telaTarefas(`<span>CICLOS /</span> ${c.id} · ${d2(c.inicio)}–${d2(c.fim)}`, 'ciclo');
+    return `<p class="empty">Ciclo = semana útil. A tarefa entra pelo prazo (atrasada conta na semana atual) ou pela data de conclusão; dá para fixar o ciclo no detalhe ${LOCAL}. Concluídas ficam 7 dias no TODO.md.</p>` + lista + `<div class="grid2"><div class="box"><h2>BURNDOWN ${c.id}</h2>${burndown(c, ts)}</div>
+        <div class="box"><h2>ESCOPO DO CICLO</h2><div class="hbars">${ESTADOS.map(([e, l]) => { const n = ts.filter((t) => t.estado === e).length, mx = Math.max(1, ts.length);
+          return `<div class="hbar" data-tip="${esc(l)}: ${n} tarefa(s)"><span>${stIco(e)} ${esc(l)}</span><span class="trk"><i style="width:${n / mx * 100}%;background:${COR[e]}"></i></span><span class="v">${n}</span></div>`; }).join('')}</div>
+          <p class="empty" style="margin-top:10px">${ts.filter(atrasada).length} atrasada(s) · ${ts.filter((t) => t.estado === 'waiting').length} aguardando alguém</p></div></div>` + corpo;
+  }
+  function burndown(c, ts) {
+    const dd = [0, 1, 2, 3, 4].map((i) => addD(c.inicio, i)), n = ts.length;
+    if (!n) return '<p class="empty">Ciclo sem tarefas.</p>';
+    const W = 420, H = 200, L = 34, R = 56, Tp = 14, B = 28, iw = W - L - R, ih = H - Tp - B;
+    const X = (i) => L + i * iw / 4, Y = (v) => Tp + ih - v / n * ih;
+    const real = dd.filter((d) => d <= HOJE).map((d) => n - ts.filter((t) => t.estado === 'done' && t.feito && t.feito <= d).length);
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Burndown do ciclo ${c.id}: ${real.length ? real[real.length - 1] : n} de ${n} tarefas restantes">`;
+    for (const v of [...new Set([0, Math.round(n / 2), n])]) s += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${v}</text>`;
+    dd.forEach((d, i) => { s += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle">${dow(d)} ${d.slice(8)}</text>`; });
+    s += `<line x1="${X(0)}" y1="${Y(n)}" x2="${X(4)}" y2="${Y(0)}" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 4"/><text x="${X(4) + 6}" y="${Y(0) + 4}">ideal</text>`;
+    if (real.length) {
+      s += `<polyline fill="none" stroke="var(--gold)" stroke-width="2" points="${real.map((v, i) => `${X(i)},${Y(v)}`).join(' ')}"/>`;
+      real.forEach((v, i) => { s += `<rect x="${X(i) - 5}" y="${Y(v) - 5}" width="10" height="10" fill="var(--gold)" stroke="var(--panel)" stroke-width="2"/>`; });
+      const li = real.length - 1; s += `<text x="${X(li) + 8}" y="${Y(real[li]) - 8}" style="fill:var(--fg)">real ${real[li]}</text>`;
+      real.forEach((v, i) => { s += `<rect x="${X(i) - iw / 8}" y="${Tp}" width="${iw / 4}" height="${ih}" fill="transparent" data-tip="${dow(dd[i])} ${d2(dd[i])}: ${v} restante(s) · ideal ${Math.round(n - n * i / 4)}"/>`; });
+    }
+    return `<div class="chart">${s}</svg></div><div class="legend"><span><i style="width:16px;height:0;border:0;border-top:2px dashed var(--muted)"></i>Ideal</span><span><i style="background:var(--gold)"></i>Real (restantes ao fim do dia)</span></div>`;
+  }
+  function paginas() {
+    const g = UI.pagina && (P.paginas || []).find((x) => x.id === UI.pagina);
+    top(g ? `<span>PÁGINAS /</span> ${esc(g.titulo.toUpperCase())}` : 'PÁGINAS', g ? '<button type="button" class="btn small" data-pagina="">VOLTAR</button>' : '');
+    if (g) return `<article class="box reader"><span class="mini">${esc({ daily: 'Daily', nota: 'Nota', decisao: 'Decisão' }[g.tipo] || g.tipo)} · ${d2(g.data)} · somente leitura · trecho do vault</span><h1>${esc(g.titulo)}</h1>${mdTxt(g.corpo)}</article>`;
+    return [['daily', 'DAILIES DA SEMANA'], ['decisao', 'DECISÕES RECENTES'], ['nota', 'NOTAS RECENTES']].map(([k, l]) => `<div class="box"><h2>${l}</h2>${(P.paginas || []).filter((x) => x.tipo === k).map((x) => `<button type="button" class="linkrow" data-pagina="${esc(x.id)}">${img('pagina', '#a8b0e0')}<span class="tt">${esc(x.titulo)}</span><span class="mini">${d2(x.data)}</span></button>`).join('') || '<p class="empty">Nada aqui.</p>'}</div>`).join('');
+  }
+  function mdTxt(src) {
+    const inl = (s) => esc(s).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g, (_, id, al) => `<button type="button" class="wl" data-goto="${esc(id)}">${esc(al || nome(id))}</button>`);
+    let h = '', ul = false;
+    for (const l of String(src || '').split('\n')) {
+      const li = l.match(/^\s*[-*]\s+(?:\[[ xX]\]\s+)?(.*)$/);
+      if (li) { if (!ul) { h += '<ul>'; ul = true; } h += `<li>${inl(li[1])}</li>`; continue; }
+      if (ul) { h += '</ul>'; ul = false; }
+      const hd = l.match(/^#{1,4}\s+(.*)$/);
+      if (hd) h += `<h3>${inl(hd[1])}</h3>`;
+      else if (l.startsWith('> ')) h += `<blockquote>${inl(l.slice(2))}</blockquote>`;
+      else if (l.trim()) h += `<p>${inl(l)}</p>`;
+    }
+    return h + (ul ? '</ul>' : '');
+  }
+  function analises() {
+    top('ANÁLISES');
+    const sem = [-14, -7, 0].map((n) => semana(addD(HOJE, n)));
+    const feitas = sem.map((w) => TS.filter((t) => t.estado === 'done' && t.feito && t.feito >= w.inicio && t.feito <= addD(w.inicio, 6)).length);
+    const mx = Math.max(1, ...feitas);
+    const W = 420, H = 190, L = 28, B = 26, Tp = 18, ih = H - Tp - B, bw = (W - L - 10) / sem.length;
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Tarefas concluídas por semana">`;
+    for (const v of [...new Set([0, Math.ceil(mx / 2), mx])]) { const y = Tp + ih - v / mx * ih; s += `<line x1="${L}" x2="${W - 10}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="${L - 6}" y="${y + 4}" text-anchor="end">${v}</text>`; }
+    sem.forEach((w, i) => { const v = feitas[i], h = v / mx * ih, x = L + i * bw + 10, y = Tp + ih - h, bwi = bw - 20;
+      if (v) s += `<path d="M${x},${Tp + ih} V${y + Math.min(4, h)} q0,-4 4,-4 H${x + bwi - 4} q4,0 4,4 V${Tp + ih} Z" fill="${w.id === CIC.id ? 'var(--gold)' : 'var(--s-done)'}" data-tip="${w.id} (${d2(w.inicio)}–${d2(w.fim)}): ${v} concluída(s)${w.id === CIC.id ? ' · semana atual' : ''}"/>`;
+      s += `<text x="${x + bwi / 2}" y="${H - 8}" text-anchor="middle">${w.id}</text><text x="${x + bwi / 2}" y="${y - 6}" text-anchor="middle" style="fill:var(--fg)">${v}</text>`; });
+    s += '</svg>';
+    const ab = TS.filter((t) => t.estado !== 'done');
+    const hb = (pares, cor) => { const m = Math.max(1, ...pares.map((p) => p[1])); return `<div class="hbars">${pares.map(([l, v, c, tip]) => `<div class="hbar" data-tip="${esc(tip || l + ': ' + v)}"><span>${l}</span><span class="trk"><i style="width:${v / m * 100}%;background:${c || cor}"></i></span><span class="v">${v}</span></div>`).join('')}</div>`; };
+    const porEstado = ESTADOS.filter(([e]) => e !== 'done').map(([e, l]) => { const n = ab.filter((t) => t.estado === e).length; return [`${stIco(e)} ${esc(l)}`, n, COR[e], `${l}: ${n} aberta(s)`]; });
+    const clis = [...new Set([...Object.keys(CL()), ...ab.map((t) => t.cliente).filter(Boolean)]), ''];
+    const porCli = clis.map((c) => { const n = ab.filter((t) => (t.cliente || '') === c).length; return [esc(c ? nome(c) : 'Sem cliente'), n, null, `${c ? nome(c) : 'Sem cliente'}: ${n} aberta(s), ${ab.filter((t) => (t.cliente || '') === c && t.prioridade === 'P1').length} P1`]; }).filter((x) => x[1]).sort((a, b) => b[1] - a[1]);
+    const idade = ESTADOS.filter(([e]) => e !== 'done').map(([e, l]) => { const ts = ab.filter((t) => t.estado === e && t.criado); const m = ts.length ? Math.round(ts.reduce((s2, t) => s2 + dias(t.criado, HOJE), 0) / ts.length) : 0; return [`${stIco(e)} ${esc(l)}`, m, COR[e], `${l}: ${ts.length} tarefa(s) com data de criação, em média ${m} dia(s)`]; });
+    return `<div class="grid2">
+      <div class="box chart"><h2>CONCLUÍDAS POR SEMANA</h2>${s}<p class="empty">O TODO.md guarda as concluídas por 7 dias; o resto vai para o Archive. Semana atual em dourado.</p></div>
+      <div class="box"><h2>ABERTAS POR ESTADO</h2>${hb(porEstado)}</div>
+      <div class="box"><h2>CARGA POR CLIENTE (ABERTAS)</h2>${porCli.length ? hb(porCli, 'var(--s-todo)') : '<p class="empty">Nenhuma tarefa ligada a cliente.</p>'}</div>
+      <div class="box"><h2>IDADE MÉDIA DAS ABERTAS (DIAS)</h2>${hb(idade)}<p class="empty" style="margin-top:8px">Dias desde a criação (campo criado: ou desde: no TODO).</p></div>
+    </div>`;
+  }
+
+  // ── Painel de detalhe ──
+  function peek() {
+    const t = UI.peek && T(UI.peek);
+    if (!t) { $('peek-root').innerHTML = ''; return; }
+    const sub = filhos(t), pai = t.pai && T(t.pai), bl = bloqueadaPor(t), blq = t.bloqueia.map(T).filter(Boolean);
+    const outros = TS.filter((x) => x.id !== t.id && x.estado !== 'done').map((x) => [x.id, txt(x.titulo)]);
+    const lt = (x) => `<li><button type="button" class="linkrow" data-open="${esc(x.id)}">${stIco(x.estado)}<span class="tt">${md(x.titulo)}</span></button></li>`;
+    const noTop = S.top3.includes(t.id);
+    $('peek-root').innerHTML = `<aside class="peek" role="dialog" aria-label="Tarefa">
+      <div class="peek-h"><span class="sid">${t.projeto ? esc(nome(t.projeto)) + ' · ' : ''}${esc(t.quadrante === 'AG' ? 'AGUARDANDO' : t.quadrante === 'OK' ? 'CONCLUÍDA' : t.quadrante || '')} · ${sid(t)}</span><button type="button" class="btn small" data-fechar="1" aria-label="Fechar">FECHAR ✕</button></div>
+      ${pai ? `<button type="button" class="linkrow" data-open="${esc(pai.id)}"><span class="mini">Subtarefa de</span><span class="tt">${md(pai.titulo)}</span></button>` : ''}
+      <textarea class="title" id="pk-titulo" rows="2" data-pk="titulo" aria-label="Título">${esc(t.titulo)}</textarea>
+      <div class="inline">${t.estado !== 'done' ? `<button type="button" class="btn small primary" data-concluir="${esc(t.id)}">CONCLUIR</button>` : ''}<button type="button" class="btn small" data-top="${esc(t.id)}">${noTop ? 'TIRAR DO TOP 3' : 'PÔR NO TOP 3'}</button></div>
+      <div class="props">
+        <label for="pk-estado">ESTADO</label><select class="f" id="pk-estado" data-pk="estado">${opts(ESTADOS, t.estado)}</select>
+        <label for="pk-pri">PRIORIDADE</label><select class="f" id="pk-pri" data-pk="prioridade">${opts(PRIS, t.prioridade)}</select>
+        <label for="pk-proj">PROJETO</label><select class="f" id="pk-proj" data-pk="projeto">${optsProj(t.projeto)}</select>
+        <label for="pk-cli">CLIENTE</label><select class="f" id="pk-cli" data-pk="cliente" ${t.projeto ? 'disabled title="Vem do projeto"' : ''}>${optsCli(t.cliente)}</select>
+        <label for="pk-prazo">PRAZO</label><input class="f" type="date" id="pk-prazo" data-pk="prazo" value="${esc(t.prazo || '')}">
+        ${t.estado === 'waiting' ? `<label>COM QUEM</label><span>${esc(t.quem ? nome(t.quem) : '—')}${t.cobrar ? ` · cobrar ${d2(t.cobrar)}` : ''}</span>` : ''}
+        <label for="pk-mod">MÓDULO</label><select class="f" id="pk-mod" data-pk="modulo" ${t.projeto && modulos(t.projeto).length ? '' : 'disabled title="Crie módulos na aba Módulos do projeto"'}>${optsMod(t.projeto, t.modulo)}</select>
+        <label for="pk-ciclo">CICLO</label><select class="f" id="pk-ciclo" data-pk="ciclo">${optsCiclo(t.ciclo, 'Automático (' + (cicloDe({ ...t, ciclo: null }) || 'sem prazo') + ')')}</select>
+        <label for="pk-ini">INÍCIO</label><input class="f" type="date" id="pk-ini" data-pk="inicio" value="${esc(t.inicio || '')}">
+        <label>RÓTULOS</label><div class="inline">${t.temas.map((r) => `<button type="button" class="chip" data-tirar-rotulo="${esc(r)}" aria-label="Remover rótulo ${esc(r)}">${esc(r)} ✕</button>`).join('')}
+          <input class="f" id="pk-rot" placeholder="+ rótulo (Enter)" aria-label="Adicionar rótulo" style="flex:0 1 140px"></div>
+      </div>
+      <p class="empty" style="font-size:13px">Estado (feito/aguardando), prioridade, projeto, cliente, prazo e título gravam no TODO.md. Backlog/A fazer/Fazendo, módulo, ciclo, início, rótulos, notas, subtarefas e bloqueios ficam ${LOCAL}.</p>
+      <div class="sect"><h4>NOTAS ${LOCAL}</h4><textarea class="f" id="pk-notas" rows="3" data-pk="notas" placeholder="Contexto, links, próximos passos">${esc(t.notas)}</textarea></div>
+      <div class="sect"><h4>SUBTAREFAS · ${sub.filter((x) => x.estado === 'done').length}/${sub.length}</h4><ul>${sub.map(lt).join('')}</ul>
+        <div class="inline" style="margin-top:6px"><input class="f" id="pk-sub" placeholder="Nova subtarefa (vai para o TODO)" aria-label="Nova subtarefa"><button type="button" class="btn small" data-add-sub="1">ADICIONAR</button></div></div>
+      <div class="sect"><h4>RELAÇÕES ${LOCAL}</h4>
+        ${bl.length ? `<p class="mini" style="margin:0 0 4px">Bloqueada por</p><ul>${bl.map(lt).join('')}</ul>` : ''}
+        ${blq.length ? `<p class="mini" style="margin:6px 0 4px">Bloqueia</p><ul>${blq.map((x) => `<li style="display:flex;gap:6px;align-items:center">${lt(x).replace(/^<li>|<\/li>$/g, '')}<button type="button" class="btn small" data-desbloq="${esc(x.id)}">REMOVER</button></li>`).join('')}</ul>` : ''}
+        ${!bl.length && !blq.length ? '<p class="empty">Sem bloqueios.</p>' : ''}
+        <div class="inline" style="margin-top:6px"><select class="f" id="pk-rel" aria-label="Tarefa bloqueada">${opts([['', 'Esta tarefa bloqueia…'], ...outros.filter(([s]) => !t.bloqueia.includes(s))], '')}</select><button type="button" class="btn small" data-add-bloq="1">LIGAR</button></div></div>
+      <div class="sect"><h4>HISTÓRICO</h4><ul class="hist">${[...(t.feito ? [{ em: t.feito, txt: 'Concluída' }] : []), ...[...t.hist].reverse(), ...(t.criado ? [{ em: t.criado, txt: 'Criada' + (t.fonte !== 'manual' ? ' · ' + t.fonte : '') }] : [])].map((h) => `<li><span>${esc(String(h.em).slice(0, 16))}</span><span>${esc(h.txt)}</span></li>`).join('') || '<li><span></span><span>Sem histórico.</span></li>'}</ul></div>
+    </aside>`;
+  }
+
+  // ── Modais ──
+  function abrirNova(pre = {}) {
+    const p = pre.projeto ?? (UI.tela === 'projeto' ? UI.proj : '');
+    $('modal-root').innerHTML = `<div class="veil" data-veil="1"><form class="modal" id="form-nova" aria-label="Nova tarefa">
+      <h2>${pre.entrada ? 'ACEITAR DA ENTRADA' : pre.pai ? 'NOVA SUBTAREFA' : 'NOVA TAREFA'}</h2>
+      <div class="form">
+        <label class="full">TÍTULO<input class="f" id="nv-titulo" required value="${esc(pre.titulo || '')}" placeholder="Verbo + objeto: Revisar health score da acme"></label>
+        <label>ESTADO<select class="f" id="nv-estado">${opts(ESTADOS.filter(([e]) => e !== 'done'), pre.estado || 'todo')}</select></label>
+        <label>PRIORIDADE<select class="f" id="nv-pri">${opts(PRIS.filter((x) => x[0]), pre.prioridade || 'P2')}</select></label>
+        <label>PROJETO<select class="f" id="nv-proj">${optsProj(p)}</select></label>
+        <label>CLIENTE<select class="f" id="nv-cli" ${p ? 'disabled' : ''}>${optsCli(pre.cliente || '')}</select></label>
+        <label>PRAZO<input class="f" type="date" id="nv-prazo" value="${esc(pre.prazo || '')}"></label>
+        <label>MÓDULO ${LOCAL}<select class="f" id="nv-mod" ${p && modulos(p).length ? '' : 'disabled'}>${optsMod(p, pre.modulo)}</select></label>
+        <label>CICLO ${LOCAL}<select class="f" id="nv-ciclo">${optsCiclo(pre.ciclo || '')}</select></label>
+        <label>INÍCIO ${LOCAL}<input class="f" type="date" id="nv-ini" value="${esc(pre.inicio || '')}"></label>
+        <label class="full">NOTAS ${LOCAL}<textarea class="f" id="nv-notas" rows="2">${esc(pre.notas || '')}</textarea></label>
+      </div>
+      <p class="empty" id="nv-erro" hidden style="color:var(--bad)">Dê um título com pelo menos 3 letras.</p>
+      <div class="inline" style="justify-content:flex-end"><button type="button" class="btn" data-fechar-modal="1">CANCELAR</button><button type="submit" class="btn primary">CRIAR NO TODO</button></div>
+    </form></div>`;
+    const f = $('form-nova'); f.dataset.entrada = pre.entrada || ''; f.dataset.pai = pre.pai || ''; f.dataset.fonte = pre.fonte || 'manual';
+    setTimeout(() => $('nv-titulo').focus(), 0);
+  }
+  let cmdSel = 0, cmdLista = [];
+  function abrirCmd() {
+    cmdSel = 0;
+    $('modal-root').innerHTML = `<div class="veil" data-veil="1"><div class="modal cmd" role="dialog" aria-label="Buscar ou comandar">
+      <input class="f" id="cmd-q" placeholder="Buscar tarefa, projeto, página ou comando" aria-label="Buscar" autocomplete="off"><ul id="cmd-res" role="listbox"></ul>
+      <p class="mini" style="margin:0">↑↓ escolher · Enter abrir · Esc fechar · atalho C cria tarefa</p></div></div>`;
+    cmdRes(); setTimeout(() => $('cmd-q').focus(), 0);
+  }
+  function cmdItens(q) {
+    q = q.trim().toLowerCase();
+    const m = (s) => !q || String(s).toLowerCase().includes(q);
+    const out = [];
+    const cmds = [['Nova tarefa', () => abrirNova()], ['Ir para Início (check-in)', () => ir('inicio')], ['Ir para Minhas tarefas', () => ir('minhas')], ['Ir para Entrada', () => ir('entrada')], ['Ir para Ciclo atual', () => ir('ciclos')], ['Ir para Análises', () => ir('analises')], ['Ir para Páginas', () => ir('paginas')], ['Ir para Notificações', () => ir('notificacoes')], ['Confirmar o dia', () => { ir('inicio'); confirmar(); }], ['Perguntar ao Claude', () => { ir('inicio'); setTimeout(() => $('ask')?.focus(), 0); }]];
+    for (const [l, fn] of cmds) if (m(l)) out.push({ k: 'COMANDO', l, fn });
+    for (const t of TS) if (q && m(txt(t.titulo))) out.push({ k: t.estado === 'done' ? 'FEITA' : (t.prioridade || ESTADO[t.estado]).toUpperCase(), l: txt(t.titulo), ic: stIco(t.estado), fn: () => abrirPeek(t.id) });
+    for (const p of P.projetos || []) if (m(p.titulo)) out.push({ k: 'PROJETO', l: p.titulo, fn: () => { UI.proj = p.id; UI.aba = 'geral'; ir('projeto'); } });
+    for (const g of P.paginas || []) if (q && m(g.titulo)) out.push({ k: 'PÁGINA', l: g.titulo, fn: () => { UI.pagina = g.id; ir('paginas'); } });
+    if (q && live.leitura) out.push({ k: 'VAULT', l: `Perguntar ao Claude sobre “${q}”`, fn: () => { ir('inicio'); perguntar(`Busque no vault: ${q}`); } });
+    return out.slice(0, 16);
+  }
+  function cmdRes() {
+    cmdLista = cmdItens($('cmd-q').value); cmdSel = Math.min(cmdSel, Math.max(0, cmdLista.length - 1));
+    $('cmd-res').innerHTML = cmdLista.map((r, i) => `<li><button type="button" class="${i === cmdSel ? 'on' : ''}" data-cmdi="${i}" role="option" aria-selected="${i === cmdSel}">${r.ic || ''}<span>${esc(r.l)}</span><span class="kind">${esc(r.k)}</span></button></li>`).join('') || '<li class="empty" style="padding:8px">Nada encontrado.</li>';
+  }
+  const fecharModal = () => { $('modal-root').innerHTML = ''; };
+  function editarBloco(i) {
+    const b = S.blocos[i];
+    $('modal-root').innerHTML = `<div class="veil" data-veil="1"><div class="modal" role="dialog" aria-label="Bloco de foco"><h2>BLOCO DE FOCO</h2>
+      <div class="form"><label>INÍCIO<input class="f" type="time" id="be-i" step="900" value="${esc(b.inicio)}"></label><label>FIM<input class="f" type="time" id="be-f" step="900" value="${esc(b.fim)}"></label>
+      <label class="full">RÓTULO<input class="f" id="be-r" value="${esc(b.rotulo)}"></label>
+      <label class="full">TAREFA<select class="f" id="be-t"><option value="">sem tarefa</option>${TS.filter((t) => t.estado !== 'done' && t.estado !== 'waiting').map((t) => `<option value="${esc(t.id)}"${t.id === b.tarefa ? ' selected' : ''}>${esc(t.prioridade || '')} · ${esc(txt(t.titulo))}</option>`).join('')}</select></label></div>
+      <div class="inline" style="justify-content:space-between"><button class="btn" type="button" data-bloco-acao="x" data-i="${i}">REMOVER</button><span class="inline"><button class="btn" type="button" data-fechar-modal="1">CANCELAR</button><button class="btn primary" type="button" data-bloco-acao="s" data-i="${i}">SALVAR</button></span></div></div></div>`;
+    setTimeout(() => $('be-r').focus(), 0);
+  }
+
+  // ── Check-in: confirmar, anotar, capturar ──
+  function plano() {
+    const top = S.top3.map((id) => { const t = T(id); const b = S.blocos.find((x) => x.tarefa === id); return t && { texto: txt(t.titulo), ctx: t.ctx || null, trecho: t.titulo, quadrante: t.quadrante, bloco: b ? `${b.inicio}–${b.fim}` : null }; }).filter(Boolean);
+    return {
+      data: HOJE, status: 'confirmado', intencao: S.intencao.trim(),
+      expediente: { inicio: (D.expediente && D.expediente.inicio) || '09:00', fim: S.fim, padrao: S.fim === ((D.expediente && D.expediente.fim) || '16:00') },
+      top3: top, blocos: S.blocos.map((b) => ({ inicio: b.inicio, fim: b.fim, rotulo: b.rotulo })),
+      riscos: riscosCalc().map(([, t]) => t),
+      ficaParaDepois: TS.filter((t) => t.estado !== 'done' && t.prioridade === 'P1' && !S.top3.includes(t.id)).map((t) => txt(t.titulo)),
+      obs: S.obs || ''
+    };
+  }
+  async function confirmar() {
+    if (!S.intencao.trim()) { toast('Escreva a intenção do dia antes de confirmar.', true); $('intencao')?.focus(); return; }
+    if (!S.top3.length) { toast('Ponha ao menos uma tarefa no Top 3.', true); return; }
+    const b = $('b-confirm'); if (b) { b.disabled = true; b.textContent = 'GRAVANDO…'; }
+    const c = plano();
+    try {
+      await gravar('jarvis_checkin_gravar', c, 'check-in do dia');
+      if (live.db) await live.db.doc('checkins/' + HOJE).set({ ...c, confirmadoEm: new Date().toISOString(), gravadoNoVault: live.escrita });
+      confirmado = new Date().toISOString();
+      evento('Check-in do dia confirmado', null); salvarLoc();
+    } catch (e) {}
+    render();
+  }
+  async function anotar() {
+    const v = ($('nota')?.value || '').trim(); if (!v) return; $('nota').value = '';
+    const hm = SP({ hour: '2-digit', minute: '2-digit' });
+    const base = ((P.daily && P.daily.anotacoes) || '').replace(/^\(livre para o Mateus\)$/, '');
+    P.daily = { ...(P.daily || {}), anotacoes: (base ? base + '\n' : '') + `- ${hm} ${v}` }; render();
+    try { await gravar('jarvis_anotar', { texto: v, data: HOJE }, 'anotação'); } catch (e) {}
+    render(); setTimeout(() => $('nota')?.focus(), 0);
+  }
+  async function capturar() { const v = ($('captura')?.value || '').trim(); if (!v) return; $('captura').value = ''; try { await gravar('jarvis_capturar', { texto: v }, 'captura no Inbox'); } catch (e) {} render(); }
+
+  // ── Claude ──
+  const turns = [], msgs = [];
+  function addMsg(k, t) { const m = { k, t }; msgs.push(m); pintarMsgs(); return m; }
+  function pintarMsgs() { const el = $('msgs'); if (!el) return; el.innerHTML = msgs.map((m) => `<div class="msg ${m.k}">${esc(m.t)}</div>`).join(''); el.scrollTop = 1e9; }
+  function contexto() {
+    const L = (t) => `- [${t.id}] ${t.quadrante} · ${t.estado} · ${txt(t.titulo)}${t.ctx ? ' · ctx ' + t.ctx : ''}${t.prazo ? ' · prazo ' + t.prazo : ''}${t.quem ? ' · quem ' + t.quem : ''}${t.cobrar ? ' · cobrar ' + t.cobrar : ''}`;
+    return [
+      `Hoje: ${HOJE} (${D.diaSemana || ''}). Expediente ${(D.expediente && D.expediente.inicio) || '09:00'}–${S.fim}. Ciclo ${CIC.id}.`,
+      `Agenda de hoje:\n${agHoje().map((e) => `- ${e.inicio}–${e.fim} ${e.titulo}${e.tipo === 'client' ? ' (cliente)' : ''}`).join('\n') || '- nada'}`,
+      `Agenda dos próximos dias:\n${A.filter((e) => (e.data || HOJE) > HOJE).slice(0, 15).map((e) => `- ${e.data} ${e.inicio} ${e.titulo}`).join('\n') || '- nada'}`,
+      `TODO aberto:\n${TS.filter((t) => t.estado !== 'done').map(L).join('\n')}`,
+      `Compromissos abertos:\n${(P.compromissos || []).map((c) => `- ${c.assumido_por} → ${c.oque}${c.prazo ? ' · prazo ' + c.prazo : ''}${c.cliente ? ' · ' + c.cliente : ''}`).join('\n') || '- nenhum'}`,
+      `Projetos: ${(P.projetos || []).map((p) => `${p.titulo}${p.prazo ? ' (prazo ' + p.prazo + ')' : ''} ${situacao(p)[1]}`).join('; ') || 'nenhum'}`,
+      `Plano atual: intenção "${S.intencao}"; Top 3 ${JSON.stringify(S.top3)}; blocos ${JSON.stringify(S.blocos.map((b) => [b.inicio, b.fim, b.rotulo, b.tarefa]))}.`
+    ].join('\n\n');
+  }
+  const REGRAS = 'Você é o Jarvis, assistente do Mateus (estagiário em transição para o time de Dados da wehandle) dentro do painel do dia. Responda em português, curto e direto, sem inventar fatos: use só os dados abaixo e, se tiver a ferramenta, buscar_vault. Ids entre colchetes são as tarefas do TODO. Para mudar o plano do dia chame aplicar_plano (o Mateus revisa e confirma na página; nada é gravado no vault por você). Critério do Top 3: prazo hoje/amanhã ou vencido com cliente esperando, compromisso com cliente/gestor, o que destrava outra pessoa. Blocos de foco só em horários livres da agenda, dentro do expediente, foco pesado de manhã, um bloco curto para cobranças.';
+  function ferramentas() {
+    const tools = [{
+      name: 'aplicar_plano',
+      description: 'Troca o plano do dia na página: intenção (1 frase), Top 3 (ids do TODO, até 3) e blocos de foco (HH:MM, com id da tarefa opcional). O Mateus vê e confirma. Retorna o plano aplicado.',
+      inputSchema: { type: 'object', properties: { intencao: { type: 'string' }, top3: { type: 'array', items: { type: 'string' } }, blocos: { type: 'array', items: { type: 'object', properties: { inicio: { type: 'string' }, fim: { type: 'string' }, rotulo: { type: 'string' }, tarefa: { type: 'string' } } } } } },
+      execute(inp) {
+        if (typeof inp.intencao === 'string' && inp.intencao.trim()) S.intencao = inp.intencao.trim();
+        if (Array.isArray(inp.top3)) S.top3 = inp.top3.map(String).filter((id) => T(id)).slice(0, 3);
+        if (Array.isArray(inp.blocos)) S.blocos = inp.blocos.filter((b) => /^\d\d:\d\d$/.test(b.inicio) && /^\d\d:\d\d$/.test(b.fim)).map((b) => ({ inicio: b.inicio, fim: b.fim, rotulo: String(b.rotulo || 'Foco'), tarefa: b.tarefa && T(String(b.tarefa)) ? String(b.tarefa) : null }));
+        saveDraft(); addMsg('s', 'Plano atualizado na página: revise e confirme.'); render();
+        return { intencao: S.intencao, top3: S.top3, blocos: S.blocos };
+      }
+    }];
+    if (live.leitura) tools.push({
+      name: 'buscar_vault',
+      description: 'Busca no segundo cérebro (notas de reuniões, pessoas, projetos, decisões) e devolve os trechos mais relevantes. Use para contexto que não está nos dados do painel.',
+      inputSchema: { type: 'object', properties: { pergunta: { type: 'string' } }, required: ['pergunta'] },
+      async execute(inp, ctx) { const r = await live.mcp.callTool(SERV_R, 'jarvis_buscar', { pergunta: String(inp.pergunta), k: 5 }, { signal: ctx.signal }); return (r.content || []).map((c) => c.text || '').join('\n').slice(0, 6000); }
+    });
+    return tools;
+  }
+  async function perguntar(t) {
+    t = String(t || '').trim(); if (!t) return;
+    if (!live.sample) { toast('Claude não está disponível nesta visualização.', true); return; }
+    if ($('ask')) $('ask').value = '';
+    addMsg('u', t); turns.push({ role: 'user', content: t });
+    const bubble = addMsg('a', 'Pensando…');
+    try {
+      const lim = await live.sample.limits().catch(() => null);
+      const input = [{ role: 'user', content: REGRAS + '\n\nDADOS DO PAINEL:\n' + contexto() }, { role: 'assistant', content: 'Entendido. Pode pedir.' }, ...turns.slice(-8)];
+      const o = { signal: new AbortController().signal, onText: ({ text }) => { bubble.t = text; pintarMsgs(); } };
+      if (lim && lim.tools) o.tools = ferramentas(); else o.cache = false;
+      const { text } = await live.sample(input, o);
+      bubble.t = text; pintarMsgs();
+      turns.push({ role: 'assistant', content: text });
+    } catch (e) {
+      bubble.t = e.text || '';
+      const msg = { not_granted: 'Claude não foi liberado para esta página.', rate_limited: 'Muitos pedidos agora; tente daqui a pouco.', session_expired: 'Entre de novo no Claude.', refused: 'O Claude recusou esse pedido.', sampling_disabled: 'Claude indisponível para esta conta.' }[e.code];
+      if (e.code !== 'cancelled') addMsg('s', msg || 'Não consegui resposta agora (' + e.code + ').');
+      if (['not_granted', 'sampling_disabled', 'not_declared'].includes(e.code)) { live.sample = null; render(); }
+      turns.pop();
+    }
+  }
+  const RAPIDO = { plano: 'Monte meu dia: proponha intenção, Top 3 e blocos de foco com aplicar_plano e explique em 3 linhas o porquê.', cobrar: 'O que eu preciso cobrar hoje, de quem, e qual a mensagem curta para cada um?', semana: 'Como está minha semana? Liste os 3 pontos de atenção (prazos, reuniões com cliente sem preparo, sobrecarga, projetos em risco).' };
+
+  // ── Navegação e render ──
+  function ir(tela) { UI.tela = tela; UI.vistaId = null; UI.salvando = false; UI.vista = { layout: UI.vista.layout, agrupar: UI.vista.agrupar, filtros: {} }; fecharModal(); $('side').classList.remove('open'); render(); $('main').scrollTop = 0; }
+  function abrirPeek(id) { UI.peek = id; fecharModal(); render(); setTimeout(() => $('pk-titulo')?.focus(), 0); }
+  function render() {
+    montar(); side();
+    const fn = { inicio, minhas: () => telaTarefas(UI.vistaId ? `<span>VISÃO /</span> ${esc((LOC.visoes.find((v) => v.id === UI.vistaId) || {}).nome || '')}` : 'MINHAS TAREFAS', 'todas'), entrada, notificacoes, projeto, ciclos, paginas, analises }[UI.tela] || inicio;
+    const ae = document.activeElement, foco = ae && ae.id, pos = ae && ae.selectionStart;
+    $('content').innerHTML = fn();
+    if (UI.tela === 'inicio') { pintarMsgs(); const ta = $('intencao'); if (ta) grow(ta); }
+    peek(); salvarUI();
+    if (foco && $(foco) && 'value' in $(foco) && !/^pk-|^be-|^nv-|^cmd-/.test(foco)) { $(foco).focus(); try { if (pos != null) $(foco).setSelectionRange(pos, pos); } catch (e) {} }
+  }
+  function grow(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+  function toTop(id, slot) {
+    S.top3 = S.top3.filter((x) => x !== id);
+    if (slot === undefined || slot >= S.top3.length) S.top3.push(id); else S.top3.splice(slot, 0, id);
+    S.top3 = S.top3.slice(0, 3); saveDraft(); render();
+  }
+  function salvarVisao() {
+    const n = ($('nome-visao')?.value || '').trim();
+    if (!n) { $('nome-visao')?.focus(); toast('Dê um nome para a visão.'); return; }
+    const v = { id: 'v' + Date.now(), nome: n, filtros: clone(UI.vista.filtros), layout: UI.vista.layout, agrupar: UI.vista.agrupar };
+    LOC.visoes.push(v); UI.salvando = false; UI.tela = 'minhas'; UI.vistaId = v.id; salvarLoc(); render(); toast(`Visão “${n}” salva na barra lateral.`);
+  }
+
+  // ── Eventos ──
+  document.addEventListener('click', async (e) => {
+    const el = e.target.closest('button,[data-veil],[data-open]'); if (!el) return;
+    const d = el.dataset;
+    if (d.veil && e.target === el) { fecharModal(); return; }
+    if (d.cmdi !== undefined) { const r = cmdLista[+d.cmdi]; fecharModal(); r && r.fn(); return; }
+    if (d.tela) { ir(d.tela); return; }
+    if (d.proj) { UI.proj = d.proj; UI.aba = 'geral'; ir('projeto'); return; }
+    if (d.aba) { UI.aba = d.aba; UI.salvando = false; UI.vista.filtros = {}; render(); return; }
+    if (d.visao) { const v = LOC.visoes.find((x) => x.id === d.visao); if (v) { UI.vista = { layout: v.layout, agrupar: v.agrupar, filtros: clone(v.filtros) }; UI.tela = 'minhas'; UI.vistaId = v.id; $('side').classList.remove('open'); render(); } return; }
+    if (d.ciclo) { UI.ciclo = d.ciclo; render(); return; }
+    if (d.pagina !== undefined) { UI.pagina = d.pagina || null; UI.tela = 'paginas'; render(); $('main').scrollTop = 0; return; }
+    if (d.goto) { const id = d.goto; if (PJ(id)) { UI.proj = id; UI.aba = 'geral'; ir('projeto'); } else if ((P.paginas || []).some((g) => g.id === id)) { UI.pagina = id; render(); } else toast(nome(id) + ': abra no vault para ver a nota completa.'); return; }
+    if (d.open) { abrirPeek(d.open); return; }
+    if (d.fechar) { UI.peek = null; render(); return; }
+    if (d.nova) { abrirNova(); return; }
+    if (d.cmd) { abrirCmd(); return; }
+    if (d.menu) { $('side').classList.toggle('open'); return; }
+    if (d.fecharModal) { fecharModal(); return; }
+    if (d.layout) { UI.vista.layout = d.layout; render(); return; }
+    if (d.colapsar) { UI.colapsados[d.colapsar] = !UI.colapsados[d.colapsar]; render(); return; }
+    if (d.limpar) { UI.vista.filtros = {}; render(); return; }
+    if (d.novaVisao) { UI.salvando = true; render(); setTimeout(() => $('nome-visao')?.focus(), 0); return; }
+    if (d.cancelarVisao) { UI.salvando = false; render(); return; }
+    if (d.salvarVisao) { salvarVisao(); return; }
+    if (d.verModulo) { UI.aba = 'tarefas'; UI.vista = { layout: 'lista', agrupar: 'estado', filtros: { modulo: d.verModulo } }; render(); return; }
+    if (d.verTriados) { UI.verTriados = !UI.verTriados; render(); return; }
+    if (d.aceitar) { const it = (P.entrada || []).find((x) => x.id === d.aceitar); if (it) abrirNova({ titulo: it.titulo, notas: `${it.resumo || ''}\nOrigem: ${it.arquivo}`.trim(), entrada: it.id, fonte: `${it.fonte}:${it.em.slice(0, 10)}` }); return; }
+    if (d.entrada) { const it = (P.entrada || []).find((x) => x.id === d.entrada); if (d.st) LOC.ent[d.entrada] = d.st; else delete LOC.ent[d.entrada]; evento(`Entrada · ${it ? it.titulo : d.entrada} → ${d.st || 'pendente'}`, null); salvarLoc(); render(); return; }
+    if (d.lidas) { notifs().forEach((l) => { LOC.lidas[lidaKey(l)] = 1; }); salvarLoc(); render(); return; }
+    if (d.notif !== undefined) { const l = notifs()[+d.notif]; if (l) { LOC.lidas[lidaKey(l)] = 1; salvarLoc(); if (l.ref && T(l.ref)) abrirPeek(l.ref); else render(); } return; }
+    if (d.reload) { await recarregar(); toast(live.escrita ? 'Painel relido do vault.' : 'Sem servidor local: mostrando o retrato.'); return; }
+    if (d.confirmar) { confirmar(); return; }
+    if (d.q) { perguntar(RAPIDO[d.q]); return; }
+    if (d.ask) { perguntar($('ask').value); return; }
+    if (d.anotar) { anotar(); return; }
+    if (d.capturar) { capturar(); return; }
+    if (d.copiar) { const t = copiaTxt.join('\n'); navigator.clipboard?.writeText(t).then(() => toast('Copiado.'), () => { const r = document.createRange(); r.selectNodeContents($('copy-txt')); getSelection().removeAllRanges(); getSelection().addRange(r); }); return; }
+    if (d.gap !== undefined) { const m = +d.gap; S.blocos.push({ inicio: fmt(m), fim: fmt(m + 60 <= toMin(S.fim) ? m + 60 : m + 30), rotulo: 'Foco', tarefa: null }); S.blocos.sort((a, b) => toMin(a.inicio) - toMin(b.inicio)); saveDraft(); render(); return; }
+    if (d.bloco !== undefined) { editarBloco(+d.bloco); return; }
+    if (d.blocoAcao) {
+      const i = +d.i, b = S.blocos[i];
+      if (d.blocoAcao === 's' && b) { b.inicio = $('be-i').value || b.inicio; b.fim = $('be-f').value || b.fim; b.rotulo = $('be-r').value.trim() || 'Foco'; b.tarefa = $('be-t').value || null; if (b.tarefa && b.rotulo === 'Foco') b.rotulo = txt(T(b.tarefa)?.titulo || 'Foco').slice(0, 40); S.blocos.sort((x, y) => toMin(x.inicio) - toMin(y.inicio)); }
+      if (d.blocoAcao === 'x') S.blocos.splice(i, 1);
+      fecharModal(); saveDraft(); render(); return;
+    }
+    if (d.up !== undefined) { const i = +d.up; [S.top3[i - 1], S.top3[i]] = [S.top3[i], S.top3[i - 1]]; saveDraft(); render(); return; }
+    if (d.out !== undefined) { S.top3.splice(+d.out, 1); saveDraft(); render(); return; }
+    if (d.top) { if (S.top3.includes(d.top)) S.top3 = S.top3.filter((x) => x !== d.top); else if (S.top3.length >= 3) { toast('O Top 3 já tem 3 tarefas: tire uma antes.', true); return; } else S.top3.push(d.top); saveDraft(); render(); return; }
+    if (d.concluir) { const t = T(d.concluir); if (t) mudar(t, 'estado', 'done'); return; }
+    if (d.addMod) {
+      const tit = ($('mod-tit').value || '').trim(); if (!tit) { $('mod-tit').focus(); return; }
+      const id = tit.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'mod' + Date.now();
+      LOC.mod[UI.proj] = [...modulos(UI.proj), { id, titulo: tit, inicio: $('mod-ini').value || null, prazo: $('mod-fim').value || null }];
+      salvarLoc(); render(); toast(`Módulo “${tit}” criado (só neste navegador).`); return;
+    }
+    const t = UI.peek && T(UI.peek);
+    if (t && d.tirarRotulo) { const o = loc(t.id); o.temas = (o.temas || []).filter((r) => r !== d.tirarRotulo); hist(t.id, `Rótulo removido: ${d.tirarRotulo}`); salvarLoc(); render(); return; }
+    if (t && d.addSub) { const v = $('pk-sub').value.trim(); if (v.length < 3) { $('pk-sub').focus(); return; } $('pk-sub').value = ''; await criar({ titulo: v, pai: t.id, projeto: t.projeto, cliente: t.projeto ? '' : t.cliente, prioridade: t.prioridade || 'P2', estado: 'todo', modulo: t.modulo, ciclo: t.ciclo }); hist(t.id, `Subtarefa criada: ${v}`); salvarLoc(); render(); return; }
+    if (t && d.addBloq) { const v = $('pk-rel').value; if (!v) return; const o = loc(t.id); o.bloqueia = [...(o.bloqueia || []), v]; hist(t.id, `Passou a bloquear: ${txt(T(v)?.titulo)}`); hist(v, `Bloqueada por: ${txt(t.titulo)}`); salvarLoc(); render(); return; }
+    if (t && d.desbloq) { const o = loc(t.id); o.bloqueia = (o.bloqueia || []).filter((x) => x !== d.desbloq); hist(t.id, `Deixou de bloquear: ${txt(T(d.desbloq)?.titulo)}`); salvarLoc(); render(); return; }
+  });
+  document.addEventListener('change', (e) => {
+    const el = e.target, d = el.dataset;
+    if (d.filtro && d.filtro !== 'texto') { UI.vista.filtros[d.filtro] = el.type === 'checkbox' ? el.checked : el.value; if (!UI.vista.filtros[d.filtro]) delete UI.vista.filtros[d.filtro]; render(); return; }
+    if (d.agrupar) { UI.vista.agrupar = el.value; render(); return; }
+    if (d.cel && d.cel !== 'titulo') { const t = T(d.id); if (t) mudar(t, d.cel, el.value); return; }
+    if (d.bl) { S.blocos.forEach((b) => { if (b.tarefa === d.bl) b.tarefa = null; }); if (el.value !== '') S.blocos[+el.value].tarefa = d.bl; saveDraft(); render(); return; }
+    if (el.id === 'fim') { S.fim = el.value || S.fim; saveDraft(); render(); return; }
+    if (el.id === 'nv-proj') { $('nv-mod').innerHTML = optsMod(el.value, ''); $('nv-mod').disabled = !(el.value && modulos(el.value).length); $('nv-cli').disabled = !!el.value; return; }
+    const t = UI.peek && T(UI.peek);
+    if (t && d.pk && d.pk !== 'titulo' && d.pk !== 'notas') { mudar(t, d.pk, el.value); return; }
+  });
+  let tmr = null;
+  document.addEventListener('input', (e) => {
+    const el = e.target;
+    if (el.id === 'cmd-q') { cmdSel = 0; cmdRes(); return; }
+    if (el.id === 'intencao') { S.intencao = el.value; grow(el); saveDraft(); return; }
+    if (el.dataset.filtro === 'texto') { clearTimeout(tmr); const v = el.value; tmr = setTimeout(() => { UI.vista.filtros.texto = v; if (!v) delete UI.vista.filtros.texto; const r = $('resultado'); if (r) r.innerHTML = corpoTarefas(); salvarUI(); }, 150); }
+  });
+  document.addEventListener('submit', async (e) => {
+    if (e.target.id !== 'form-nova') return;
+    e.preventDefault();
+    const f = e.target, tit = $('nv-titulo').value.trim();
+    if (tit.length < 3) { $('nv-erro').hidden = false; $('nv-titulo').focus(); return; }
+    const dados = { titulo: tit, estado: $('nv-estado').value, prioridade: $('nv-pri').value, projeto: $('nv-proj').value, cliente: $('nv-cli').disabled ? '' : $('nv-cli').value, modulo: $('nv-mod').value,
+      ciclo: $('nv-ciclo').value, inicio: $('nv-ini').value, prazo: $('nv-prazo').value, notas: $('nv-notas').value, pai: f.dataset.pai || null, fonte: f.dataset.fonte };
+    const ent = f.dataset.entrada;
+    fecharModal();
+    await criar(dados);
+    if (ent) { LOC.ent[ent] = 'aceito'; salvarLoc(); }
+    render();
+  });
+  document.addEventListener('focusout', (e) => {
+    const el = e.target;
+    if (el.dataset.cel === 'titulo') { const t = T(el.dataset.id); if (t && el.value.trim() && el.value !== t.titulo) mudar(t, 'titulo', el.value.trim()); return; }
+    const t = UI.peek && T(UI.peek);
+    if (t && (el.dataset.pk === 'titulo' || el.dataset.pk === 'notas') && el.value !== (t[el.dataset.pk] || '')) {
+      if (el.dataset.pk === 'titulo' && el.value.trim().length < 3) { el.value = t.titulo; return; }
+      const k = el.dataset.pk, v = el.value;
+      setTimeout(() => mudar(T(UI.peek) || t, k, k === 'titulo' ? v.trim() : v), 0);
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    const el = e.target, tag = (el.tagName || '').toLowerCase(), digitando = tag === 'input' || tag === 'textarea' || tag === 'select';
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); abrirCmd(); return; }
+    if (e.key === 'Escape') { if ($('modal-root').innerHTML) fecharModal(); else if (UI.peek) { UI.peek = null; render(); } return; }
+    if (el.id === 'cmd-q') {
+      if (e.key === 'ArrowDown') { e.preventDefault(); cmdSel = Math.min(cmdSel + 1, cmdLista.length - 1); cmdRes(); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); cmdSel = Math.max(cmdSel - 1, 0); cmdRes(); }
+      if (e.key === 'Enter') { e.preventDefault(); const r = cmdLista[cmdSel]; fecharModal(); r && r.fn(); }
+      return;
+    }
+    if (e.key === 'Enter') {
+      if (el.id === 'nome-visao') { e.preventDefault(); salvarVisao(); return; }
+      if (el.id === 'pk-sub') { e.preventDefault(); document.querySelector('[data-add-sub]')?.click(); return; }
+      if (el.id === 'pk-rot') { e.preventDefault(); const v = el.value.trim().toLowerCase().replace(/\s+/g, '-'); const t = T(UI.peek); if (v && t) { const o = loc(t.id); o.temas = [...new Set([...(o.temas || []), v])]; hist(t.id, `Rótulo adicionado: ${v}`); salvarLoc(); render(); setTimeout(() => $('pk-rot')?.focus(), 0); } return; }
+      if (el.id === 'nota') { e.preventDefault(); anotar(); return; }
+      if (el.id === 'captura') { e.preventDefault(); capturar(); return; }
+      if (el.id === 'ask' && !e.shiftKey) { e.preventDefault(); perguntar(el.value); return; }
+      if (el.id === 'mod-tit') { e.preventDefault(); document.querySelector('[data-add-mod]')?.click(); return; }
+    }
+    if (!digitando && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'c' && !$('modal-root').innerHTML) { e.preventDefault(); abrirNova(); }
+  });
+  // Arrastar: quadro (muda o campo da coluna) e Top 3
+  let arr = null;
+  document.addEventListener('dragstart', (e) => { const c = e.target.closest && e.target.closest('[data-drag]'); if (c) { arr = c.dataset.drag; e.dataTransfer.setData('text/plain', arr); e.dataTransfer.effectAllowed = 'move'; } });
+  document.addEventListener('dragover', (e) => { const c = e.target.closest && e.target.closest('[data-col],[data-slot]'); if (c && arr) { e.preventDefault(); document.querySelectorAll('.over,.drop').forEach((x) => x !== c && x.classList.remove('over', 'drop')); c.classList.add(c.dataset.slot !== undefined ? 'drop' : 'over'); } });
+  document.addEventListener('drop', (e) => {
+    const c = e.target.closest && e.target.closest('[data-col],[data-slot]');
+    if (c && arr) {
+      e.preventDefault(); const t = T(arr);
+      if (c.dataset.slot !== undefined) { if (t && t.estado !== 'done') toTop(t.id, +c.dataset.slot); }
+      else if (t) { const campo = c.dataset.campo; if (campo === 'cliente' && t.projeto) toast('Cliente vem do projeto: mude o projeto da tarefa.', true); else mudar(t, campo, c.dataset.col); }
+    }
+    arr = null; document.querySelectorAll('.over,.drop').forEach((x) => x.classList.remove('over', 'drop'));
+  });
+  document.addEventListener('dragend', () => { arr = null; document.querySelectorAll('.over,.drop').forEach((x) => x.classList.remove('over', 'drop')); });
+  // Dica flutuante
+  document.addEventListener('mousemove', (e) => {
+    const el = e.target.closest && e.target.closest('[data-tip]'), tip = $('tip');
+    if (!el) { tip.hidden = true; return; }
+    tip.textContent = el.getAttribute('data-tip'); tip.hidden = false;
+    tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + 'px'; tip.style.top = Math.min(e.clientY + 14, innerHeight - tip.offsetHeight - 8) + 'px';
+  });
+  window.addEventListener('resize', () => { const ta = $('intencao'); if (ta) grow(ta); });
+
+  // ── Boot ──
+  render();
+  (async () => {
+    const use = (n) => (window.claude ? window.claude.use(n).catch(() => null) : Promise.resolve(null));
+    const [mcp, db, sample] = await Promise.all([use('mcp'), use('db'), use('sample')]);
+    live.mcp = mcp; live.db = db; live.sample = sample;
+    if (mcp) {
+      try {
+        const lt = await mcp.listTools();
+        const has = (s) => (lt.servers || []).some((x) => x.server === s && (x.tools || []).length);
+        live.escrita = has(SERV_W); live.leitura = has(SERV_R); live.outlook = has(SERV_O);
+      } catch (e) {}
+    }
+    if (db) db.doc('checkins/' + HOJE).onSnapshot((s) => { if (s.exists) { confirmado = s.data().confirmadoEm || confirmado; render(); } }, () => {});
+    await recarregar(true);
+  })();
+})();
+</script>

@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node System/scripts/guia.mjs hook",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,4 @@
+t0011 12:01 Bruno Souza: E as exceções?
+t0012 12:05 Ana Lima: Nenhuma exceção nova entra sem o meu de   acordo.
+t0013 12:09 Bruno Souza: Combinado.
+t0020 14:40 Ana Lima: Eu mando a base até segunda, pode deixar.
