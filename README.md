@@ -12,6 +12,8 @@ Um **health-brain**: junta exames (do papel ao PDF do laboratório) e dados de w
 
 Este repo segue o [harness engineering](https://openai.com/pt-BR/index/harness-engineering/): quem escreve o código são agentes de IA, e o time cuida do ambiente (docs, regras, ferramentas). O ponto de entrada dos agentes é o [AGENTS.md](AGENTS.md); os agentes e o fluxo estão em [docs/agents.md](docs/agents.md).
 
+- **Guia dos agentes de coding:** [.claude/agents/README.md](.claude/agents/README.md). Explica os 8 agentes (`fundador`, `executor`, `auto-revisor`, `revisor`, `loop-de-revisao`, `jardineiro-de-docs`, `coletor-de-lixo`, `ponta-a-ponta`): o papel de cada um, quando usar, o fluxo de uma tarefa, exemplos de pedido e as regras que valem pra todos.
+
 ## Dados
 
 Só dados **sintéticos** entram no repositório (`data/sintetico/`). Dado de saúde real nunca é commitado.
