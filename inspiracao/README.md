@@ -23,7 +23,7 @@ O **Jarvis** é o segundo cérebro de trabalho do Mateus Falcão (wehandle). O c
 15. [O TODO](#o-todo)
 16. [Regras invioláveis](#regras-invioláveis)
 17. [Como rodar](#como-rodar)
-18. [O que dá pra levar pro LIA](#o-que-dá-pra-levar-pro-lia)
+18. [O que dá pra levar pra LIA](#o-que-dá-pra-levar-pra-lia)
 19. [O que foi apagado](#o-que-foi-apagado)
 
 ## A ideia
@@ -300,9 +300,9 @@ Pelo README dele: Git, Node ≥ 22, Claude Code e PowerShell. O Obsidian é opci
 
 Ele espera ser aberto na raiz do próprio vault e usa conectores (Microsoft 365, ClickUp, Jira) e caminhos da máquina do Mateus. Aqui ele é **referência de leitura**, não algo pra rodar.
 
-## O que dá pra levar pro LIA
+## O que dá pra levar pra LIA
 
-| No Jarvis | No LIA (health-brain) |
+| No Jarvis | Na LIA (health-brain) |
 |---|---|
 | Bruto imutável + nota destilada com ponteiro pra fonte | PDF ou foto do exame fica intacto e cada resultado vira nota com link pro original |
 | "Sem citação literal, sem evidência" + `jarvis_evidencias` | "Todo número aponta pra fonte", com checagem automática |
@@ -311,7 +311,7 @@ Ele espera ser aberto na raiz do próprio vault e usa conectores (Microsoft 365,
 | `jarvis_timeline` | A linha do tempo da saúde |
 | Fonte é dado, não instrução; escrita externa só com OK | Consentimento explícito pra compartilhar com o médico |
 | Pipeline determinístico + subagente que só devolve JSON + `validate` | Extração de laudo: o modelo extrai, o script valida e grava |
-| Harness: `CLAUDE.md` como contrato, subagentes, testes em fixture fictícia | Harness engineering do LIA (`AGENTS.md`, agentes em `.claude/agents/`, só dado sintético) |
+| Harness: `CLAUDE.md` como contrato, subagentes, testes em fixture fictícia | Harness engineering da LIA (`AGENTS.md`, agentes em `.claude/agents/`, só dado sintético) |
 
 ## Notas da cópia
 

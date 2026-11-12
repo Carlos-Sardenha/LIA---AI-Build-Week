@@ -66,4 +66,4 @@ O `extrator-reuniao` não serve pra chamar na mão: ele precisa do pedido `.md` 
 3. Dê só as ferramentas que ele precisa. Agente que só lê não ganha `Write`.
 4. Se ele for parte de uma rotina, chame ele no comando (`.claude/commands/`) ou no prompt da rotina (`System/prompts/`).
 
-> ⚠ Nesta cópia (inspiração pro LIA), as pastas de conteúdo estão vazias e os scripts esperam os caminhos e conectores da máquina do Mateus. Os agentes servem como **molde** pra ler e adaptar, não pra rodar como estão.
+> ⚠ Nesta cópia (inspiração pra LIA), as pastas de conteúdo estão vazias e os scripts esperam os caminhos e conectores da máquina do Mateus. Os agentes servem como **molde** pra ler e adaptar, não pra rodar como estão.

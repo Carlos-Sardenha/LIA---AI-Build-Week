@@ -21,7 +21,7 @@ Duas ideias sustentam isso: o **LLM Wiki** (como o brain é construído) e o **G
 
 O padrão LLM Wiki, proposto por Andrej Karpathy, troca o "joga tudo num chat e pergunta" por uma **wiki que a IA compila e mantém**. A IA faz a contabilidade (ler, resumir, ligar, deduplicar, atualizar). A pessoa faz a curadoria. O conhecimento se acumula, em vez de ser refeito do zero a cada pergunta.
 
-No LIA são três camadas:
+Na LIA são três camadas:
 
 | Camada | O que é | Regra |
 |---|---|---|
@@ -33,7 +33,7 @@ Quando chega um exame novo, a IA não cria uma pilha a mais: ela **atualiza o br
 
 ### GraphRAG: responder andando pelas ligações, sempre com fonte
 
-RAG é buscar o contexto certo antes de a IA responder. **GraphRAG** é fazer essa busca **andando pelas ligações** entre as notas, em vez de só procurar texto parecido. O LIA faz isso **sem banco vetorial**: as ligações vêm do próprio modelo de notas, e a busca usa BM25 (ranking clássico por palavra) e busca literal.
+RAG é buscar o contexto certo antes de a IA responder. **GraphRAG** é fazer essa busca **andando pelas ligações** entre as notas, em vez de só procurar texto parecido. A LIA faz isso **sem banco vetorial**: as ligações vêm do próprio modelo de notas, e a busca usa BM25 (ranking clássico por palavra) e busca literal.
 
 ```mermaid
 flowchart LR
@@ -49,7 +49,7 @@ Por que assim:
 - **Dá pra auditar.** O caminho da resposta é feito de notas e ligações que qualquer pessoa consegue abrir, não de vetores opacos.
 - **É simples de rodar.** Sem infraestrutura extra, o que importa numa semana de hackathon.
 
-A referência dessas duas ideias é o Jarvis, um segundo cérebro de trabalho que já usa LLM Wiki e GraphRAG sem embeddings. O que o LIA aproveita dele está em [inspiracao/README.md](inspiracao/README.md#o-que-dá-pra-levar-pro-lia).
+A referência dessas duas ideias é o Jarvis, um segundo cérebro de trabalho que já usa LLM Wiki e GraphRAG sem embeddings. O que a LIA aproveita dele está em [inspiracao/README.md](inspiracao/README.md#o-que-dá-pra-levar-pra-lia).
 
 ## Como o código é escrito
 

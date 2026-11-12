@@ -1,6 +1,6 @@
-# Agentes de coding do LIA: como usar
+# Agentes de coding da LIA: como usar
 
-Esta pasta tem os **8 agentes de coding** do LIA. Eles seguem o [harness engineering](https://openai.com/pt-BR/index/harness-engineering/) da OpenAI: **humano dirige, agente executa**. A gente diz *o quê* e *o critério de aceitação*, e os agentes escrevem, revisam e mesclam o código. O nosso trabalho é cuidar do ambiente: docs, regras, lint e ferramentas.
+Esta pasta tem os **8 agentes de coding** da LIA. Eles seguem o [harness engineering](https://openai.com/pt-BR/index/harness-engineering/) da OpenAI: **humano dirige, agente executa**. A gente diz *o quê* e *o critério de aceitação*, e os agentes escrevem, revisam e mesclam o código. O nosso trabalho é cuidar do ambiente: docs, regras, lint e ferramentas.
 
 Cada `.md` daqui (menos este README) é um agente (subagente do Claude Code): o frontmatter tem `name`, `description` (quando usar) e `tools`, e o corpo é o prompt dele. O Claude Code acha os agentes sozinho quando a sessão abre na raiz do repositório.
 
@@ -32,7 +32,7 @@ executor → auto-revisor → loop-de-revisao (chama os revisores em paralelo) �
 
 ## Como usar
 
-1. **Abra o Claude Code na raiz do LIA**, de preferência numa **worktree própria** da sua trilha (cada trilha roda sua instância do app sem pisar nas outras).
+1. **Abra o Claude Code na raiz da LIA**, de preferência numa **worktree própria** da sua trilha (cada trilha roda sua instância do app sem pisar nas outras).
 2. **Descreva a tarefa com o critério de aceitação** e diga qual agente usar. Exemplos:
 
    ~~~
@@ -109,7 +109,7 @@ Um foco por instância:
 | testes | regra sem teste, teste que não falharia se o código quebrasse |
 | performance | consulta em loop, trabalho repetido, meta de tempo não atingida |
 
-Só reporta o que consegue **provar** (arquivo, linha e cenário), comenta no PR e termina com **APROVADO** ou **MUDANÇAS NECESSÁRIAS**. No LIA, o foco **segurança** roda em todo PR que mexe em upload, armazenamento, consentimento ou chamada de IA (o repo é público e o tema é saúde).
+Só reporta o que consegue **provar** (arquivo, linha e cenário), comenta no PR e termina com **APROVADO** ou **MUDANÇAS NECESSÁRIAS**. Na LIA, o foco **segurança** roda em todo PR que mexe em upload, armazenamento, consentimento ou chamada de IA (o repo é público e o tema é saúde).
 
 ### 5. `loop-de-revisao`
 
