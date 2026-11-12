@@ -2,7 +2,7 @@
 
 Projeto para o **Hackathon Gama House · Desafio Rivio** (AI Build Week, novembro de 2026).
 
-Um **health-brain**: junta exames (do papel ao PDF do laboratório) e dados de wearables numa linha do tempo ligada, que a pessoa consulta em linguagem natural e compartilha com o médico mediante consentimento. Todo número aponta para a fonte.
+Um **health-brain**: junta exames (imagens/pdfs) e dados de wearables numa linha do tempo ligada, que a pessoa consulta em linguagem natural e compartilha com o médico mediante consentimento. Todo número aponta para a fonte.
 
 - Produto: [docs/product-specs/health-brain.md](docs/product-specs/health-brain.md)
 - Arquitetura: [ARCHITECTURE.md](ARCHITECTURE.md)
