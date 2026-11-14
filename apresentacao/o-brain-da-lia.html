@@ -1,0 +1,923 @@
+<title>O Brain da LIA</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: coluna de leitura de ~68ch; diagramas e tabelas sangram até 1040px. Grafo da Marina é a peça central. */
+:root {
+  --bg: #f4f7f7;
+  --surface: #ffffff;
+  --ink: #12201f;
+  --muted: #566563;
+  --line: #d6e0df;
+  --accent: #0b7a70;
+  --accent-soft: #dcefec;
+  --edge: #b5650b;
+  --edge-soft: #f7e7d3;
+  --faint: #b9c6c4;
+  --ok: #1f7a3d;
+  --stop: #a33a2b;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1716; --surface: #16211f; --ink: #e4eeec; --muted: #9db0ad; --line: #2a3a38;
+    --accent: #4fc2b4; --accent-soft: #173a36; --edge: #e7a14f; --edge-soft: #3a2a17;
+    --faint: #3d4e4c; --ok: #6ccf8f; --stop: #ef8a7a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1716; --surface: #16211f; --ink: #e4eeec; --muted: #9db0ad; --line: #2a3a38;
+  --accent: #4fc2b4; --accent-soft: #173a36; --edge: #e7a14f; --edge-soft: #3a2a17;
+  --faint: #3d4e4c; --ok: #6ccf8f; --stop: #ef8a7a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font: 16px/1.65 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 72px;
+}
+main { max-width: 1040px; margin: 0 auto; display: grid; gap: 64px; }
+.prose { max-width: 68ch; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.1rem, 5vw, 3.2rem); letter-spacing: -0.02em; }
+h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -0.01em; }
+h3 { font-size: 1.15rem; }
+p { margin: 0; }
+section { display: grid; gap: 20px; }
+.eyebrow { font: 600 0.75rem/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+.lede { font-size: 1.15rem; color: var(--muted); max-width: 62ch; }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+strong { font-weight: 600; }
+a { color: var(--accent); }
+
+/* Hero */
+.hero { display: grid; gap: 18px; }
+.qa { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 8px; }
+.q { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.q .k { font: 500 0.72rem/1 var(--font-mono); color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+.q p { margin-top: 6px; font-weight: 500; }
+
+/* Camadas */
+.layers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.layer { padding: 18px; display: grid; gap: 10px; align-content: start; border-right: 1px solid var(--line); min-width: 0; }
+.layer:last-child { border-right: 0; }
+.layer .tag { font: 600 0.72rem/1 var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; }
+.layer.raw .tag { color: var(--muted); }
+.layer.wiki .tag { color: var(--accent); }
+.layer.schema .tag { color: var(--edge); }
+.layer ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; font-size: 0.92rem; }
+.layer .who { font-size: 0.82rem; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 8px; }
+@media (max-width: 720px) { .layers { grid-template-columns: 1fr; } .layer { border-right: 0; border-bottom: 1px solid var(--line); } .layer:last-child { border-bottom: 0; } }
+
+/* Tabelas */
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 0.93rem; }
+th, td { text-align: left; vertical-align: top; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+th { font: 600 0.75rem/1.3 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface)); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; }
+
+/* Callouts */
+.insight { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; max-width: 68ch; }
+.insight.warn { border-left-color: var(--edge); }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.pair .q { display: grid; gap: 6px; }
+.pair .q h3 { font-size: 1rem; }
+
+/* Grafo interativo */
+.lab { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 14px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.controls .label { font: 500 0.75rem/1 var(--font-mono); color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-right: 4px; }
+.btn { font: 500 0.88rem/1 var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.graphwrap { overflow-x: auto; }
+svg.graph { display: block; width: 100%; min-width: 600px; height: auto; }
+.graph .edge { stroke: var(--faint); stroke-width: 1.6; fill: none; transition: stroke 0.25s, opacity 0.25s; }
+.graph .edge.before { stroke-dasharray: 5 4; }
+.graph .node rect { fill: var(--bg); stroke: var(--faint); stroke-width: 1.4; transition: fill 0.25s, stroke 0.25s, opacity 0.25s; }
+.graph .node text { fill: var(--muted); font: 500 12px var(--font-body); transition: fill 0.25s, opacity 0.25s; }
+.graph .node .sub { font: 400 10.5px var(--font-mono); }
+.graph .elabel { fill: var(--muted); font: 500 10.5px var(--font-mono); opacity: 0; transition: opacity 0.25s; }
+.graph .node.start rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2.2; }
+.graph .node.start text { fill: var(--ink); }
+.graph .node.walk rect { stroke: var(--edge); fill: var(--edge-soft); stroke-width: 1.8; }
+.graph .node.walk text { fill: var(--ink); }
+.graph .edge.walk { stroke: var(--edge); stroke-width: 2.2; }
+.graph .elabel.walk { opacity: 1; fill: var(--edge); }
+.graph .node.dim, .graph .edge.dim { opacity: 0.35; }
+.panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; }
+@media (max-width: 760px) { .panel { grid-template-columns: 1fr; } }
+.step-text { display: grid; gap: 8px; align-content: start; }
+.step-text h3 { font-size: 1.05rem; }
+.step-text p { color: var(--muted); font-size: 0.95rem; }
+.facts { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 0.86rem; }
+.facts li { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; border-bottom: 1px dashed var(--line); padding-bottom: 5px; }
+.src { font: 500 0.72rem/1 var(--font-mono); color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 3px 6px; white-space: nowrap; }
+.answer { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 8px; font-size: 0.95rem; }
+.answer .path { font: 400 0.8rem/1.5 var(--font-mono); color: var(--muted); border-top: 1px dashed var(--line); padding-top: 8px; }
+.answer.none { border-color: var(--stop); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.8rem; color: var(--muted); }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.sw { width: 14px; height: 10px; border-radius: 3px; border: 1.6px solid; display: inline-block; }
+
+/* Ciclo */
+.cycle { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; align-items: stretch; }
+@media (max-width: 760px) { .cycle { grid-template-columns: 1fr; } .cycle .arrow { transform: rotate(90deg); justify-self: center; } }
+.lane { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; align-content: start; }
+.lane .tag { font: 600 0.72rem/1 var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; }
+.lane.write .tag { color: var(--accent); }
+.lane.read .tag { color: var(--edge); }
+.lane ol { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; font-size: 0.92rem; }
+.lane .when { font-size: 0.8rem; color: var(--muted); }
+.arrow { align-self: center; font: 600 1.6rem/1 var(--font-display); color: var(--muted); }
+.loop { text-align: center; font-size: 0.88rem; color: var(--muted); }
+
+/* Cadeia de prova */
+.chain { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 0.9rem; }
+.chain .link { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+.chain .link small { display: block; font: 500 0.68rem/1.2 var(--font-mono); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+.chain .sep { color: var(--muted); }
+
+/* Pitch */
+.pitch { background: var(--accent); color: var(--surface); border-radius: 14px; padding: 26px 24px; display: grid; gap: 10px; }
+.pitch .eyebrow { color: var(--surface); opacity: 0.8; }
+.pitch blockquote { margin: 0; font: 500 clamp(1.1rem, 2.4vw, 1.35rem)/1.5 var(--font-display); max-width: 60ch; }
+footer { font-size: 0.82rem; color: var(--muted); max-width: 68ch; }
+/* Conteúdo novo: base aprofundada + projeto */
+.divider { display: grid; gap: 10px; padding-top: 28px; border-top: 2px solid var(--line); }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.card h3 { font-size: 1rem; }
+.card p, .card li { font-size: 0.92rem; }
+.card p.small, .card .small { color: var(--muted); font-size: 0.85rem; }
+.card ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
+.card .tag { font: 600 0.72rem/1 var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+.card.alt .tag { color: var(--edge); }
+.card.yes { border-top: 3px solid var(--ok); }
+.card.no { border-top: 3px solid var(--stop); }
+.card.yes .tag { color: var(--ok); }
+.card.no .tag { color: var(--stop); }
+.note { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 10px; padding: 14px 16px; font: 400 0.82rem/1.6 var(--font-mono); display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.note .k { color: var(--muted); }
+.note .quote { color: var(--ink); background: var(--accent-soft); border-radius: 4px; padding: 1px 4px; }
+.note .title { font: 600 0.95rem/1.3 var(--font-display); margin-bottom: 6px; }
+.flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; counter-reset: flow; }
+.flow li { counter-increment: flow; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 6px; align-content: start; font-size: 0.9rem; }
+.flow li::before { content: counter(flow); font: 600 0.8rem/1 var(--font-mono); color: var(--surface); background: var(--accent); border-radius: 999px; width: 24px; height: 24px; display: grid; place-items: center; }
+.flow li strong { font-family: var(--font-display); }
+.flow li span { color: var(--muted); font-size: 0.85rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 4px; }
+.stat b { font: 700 1.8rem/1.1 var(--font-display); color: var(--accent); }
+.stat span { font-size: 0.85rem; color: var(--muted); }
+.tour { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+.tour .card h3::before { content: "▸ "; color: var(--accent); }
+.arch { display: grid; gap: 8px; }
+.arch .row { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px; align-items: stretch; }
+.arch .rowlabel { font: 600 0.72rem/1.3 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; }
+.arch .boxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.arch .box { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 0.86rem; min-width: 0; }
+.arch .box b { display: block; font-family: var(--font-display); font-size: 0.95rem; margin-bottom: 2px; }
+.arch .row.ui .box { border-color: var(--accent); background: var(--accent-soft); }
+.arch .row.srv .box { border-color: var(--edge); background: var(--edge-soft); }
+.arch .row.ai .box { border-style: dashed; }
+.arch .down { text-align: center; color: var(--muted); font: 500 0.8rem/1 var(--font-mono); }
+@media (max-width: 600px) { .arch .row { grid-template-columns: 1fr; } }
+.script { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.script li { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 14px; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
+.script li:last-child { border-bottom: 0; }
+.script time { font: 600 0.8rem/1.6 var(--font-mono); color: var(--accent); }
+.script li p + p { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+@media (max-width: 480px) { .script li { grid-template-columns: 1fr; gap: 4px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<main>
+  <header class="hero">
+    <span class="eyebrow">LIA · health-brain · Desafio Rivio</span>
+    <h1>O Brain da LIA: LLM Wiki + GraphRAG</h1>
+    <p class="lede">Um modelo de linguagem não tem memória. A LIA resolve isso com duas ideias, uma em cada momento:</p>
+    <div class="qa">
+      <div class="q"><span class="k">Quando o documento chega</span><p><strong>Entender e guardar:</strong> transformar o PDF em fatos organizados e ligados, uma vez só. → <span style="color:var(--accent)">LLM Wiki</span></p></div>
+      <div class="q"><span class="k">Quando a pergunta chega</span><p><strong>Selecionar:</strong> escolher só os fatos que respondem, em vez de mandar todos para a IA. → <span style="color:var(--edge)">GraphRAG</span></p></div>
+    </div>
+    <p class="prose" style="color:var(--muted)">Numa biblioteca: um é catalogar os livros; o outro é o bibliotecário achar os 3 livros certos para você.</p>
+  </header>
+
+  <section aria-labelledby="wiki">
+    <span class="eyebrow">Parte 1 · entender e guardar</span>
+    <h2 id="wiki">LLM Wiki: compilar uma vez, consultar sempre</h2>
+    <p class="prose">Ideia do Andrej Karpathy: a IA lê cada fonte uma vez, quando ela chega, e compila o que importa numa wiki de notas ligadas. A pessoa faz a curadoria.</p>
+
+    <div class="layers" role="list">
+      <div class="layer raw" role="listitem">
+        <span class="tag">Bruto · nunca muda</span>
+        <ul>
+          <li><code>laudo_alfa_2023.pdf</code></li>
+          <li><code>foto_hemograma_2016.jpg</code></li>
+          <li><code>export_relogio.json</code></li>
+        </ul>
+        <span class="who">A prova de tudo.</span>
+      </div>
+      <div class="layer wiki" role="listitem">
+        <span class="tag">Wiki · o brain</span>
+        <ul>
+          <li>LDL 128 mg/dL, 15/02/2023 <span class="src">laudo_alfa p.1</span></li>
+          <li>Nó: Pneumonia (18/03/2025)</li>
+          <li>69 ligações entre os nós</li>
+        </ul>
+        <span class="who">A IA extrai, o código decide e grava, sempre com o trecho literal.</span>
+      </div>
+      <div class="layer schema" role="listitem">
+        <span class="tag">Schema · as regras</span>
+        <ul>
+          <li>todo número tem fonte</li>
+          <li>a IA extrai, o script decide</li>
+          <li>a IA não diagnostica</li>
+        </ul>
+        <span class="who">O contrato que a IA e o código seguem.</span>
+      </div>
+    </div>
+
+    <p class="insight"><strong>A sacada:</strong> o trabalho caro (ler, entender, padronizar) acontece na escrita, uma vez por documento, e não a cada pergunta. Por isso o conhecimento acumula: o LDL do Laboratório Alfa e o do Laboratório Beta já estão na mesma série quando alguém pergunta.</p>
+  </section>
+
+  <section aria-labelledby="graphrag">
+    <span class="eyebrow">Parte 2 · selecionar</span>
+    <h2 id="graphrag">GraphRAG: o contexto vem andando pelas ligações</h2>
+    <p class="prose">A busca comum pega o texto mais <strong>parecido</strong> com a pergunta. Na saúde, a resposta costuma estar no <strong>relacionado</strong>: o raio-x não fala de oxigenação e o relógio não fala de pneumonia. O que os liga é o tempo, e o grafo guarda essa ligação.</p>
+
+    <div class="lab" aria-label="Simulação do GraphRAG no brain da Marina (dados fictícios)">
+      <div class="controls">
+        <span class="label">Pergunta</span>
+        <button class="btn" id="q-spo2" aria-pressed="true">Minha oxigenação caiu antes da pneumonia?</button>
+        <button class="btn" id="q-ferro" aria-pressed="false">Como está meu ferro?</button>
+      </div>
+      <div class="controls">
+        <span class="label">Passo</span>
+        <button class="btn step" data-step="1" id="s1" aria-pressed="false">1 · Ponto de partida</button>
+        <button class="btn step" data-step="2" id="s2" aria-pressed="false">2 · Andar pelas ligações</button>
+        <button class="btn step" data-step="3" id="s3" aria-pressed="false">3 · Juntar a evidência</button>
+        <button class="btn step" data-step="4" id="s4" aria-pressed="true">4 · Responder citando</button>
+      </div>
+
+      <div class="graphwrap">
+        <svg class="graph" viewBox="0 0 760 400" role="img" aria-label="Grafo com nós da Marina: leituras de SpO2, Pneumonia, raio-x, falta de ar, Dra. Helena Costa, amoxicilina, colesterol LDL e TSH">
+          <path class="edge before" id="e-s1" d="M150 70 C 260 110, 300 160, 352 192"/>
+          <path class="edge before" id="e-s2" d="M150 130 C 250 150, 300 175, 352 196"/>
+          <path class="edge before" id="e-s3" d="M150 190 L 352 200"/>
+          <path class="edge before" id="e-s4" d="M150 250 C 250 240, 300 220, 352 204"/>
+          <path class="edge before" id="e-s5" d="M150 310 C 260 280, 300 240, 352 208"/>
+          <path class="edge" id="e-xray" d="M448 188 L 560 112"/>
+          <path class="edge" id="e-dysp" d="M448 212 L 560 288"/>
+          <path class="edge" id="e-doc" d="M600 112 L 660 196"/>
+          <path class="edge" id="e-amox" d="M400 222 L 400 320"/>
+          <path class="edge" id="e-ldl" d="M560 360 L 690 360"/>
+          <text class="elabel" id="l-before" x="196" y="104">antes de · −5 a −1 dias</text>
+          <text class="elabel" id="l-xray" x="476" y="138">relacionado</text>
+          <text class="elabel" id="l-dysp" x="476" y="268">relacionado</text>
+          <text class="elabel" id="l-amox" x="408" y="276">relacionado</text>
+          <g class="node" id="n-s1"><rect x="40" y="52" width="110" height="36" rx="8"/><text x="52" y="68">SpO2 97%</text><text class="sub" x="52" y="82">13/03/2025</text></g>
+          <g class="node" id="n-s2"><rect x="40" y="112" width="110" height="36" rx="8"/><text x="52" y="128">SpO2 96%</text><text class="sub" x="52" y="142">14/03/2025</text></g>
+          <g class="node" id="n-s3"><rect x="40" y="172" width="110" height="36" rx="8"/><text x="52" y="188">SpO2 95%</text><text class="sub" x="52" y="202">15/03/2025</text></g>
+          <g class="node" id="n-s4"><rect x="40" y="232" width="110" height="36" rx="8"/><text x="52" y="248">SpO2 94%</text><text class="sub" x="52" y="262">16/03/2025</text></g>
+          <g class="node" id="n-s5"><rect x="40" y="292" width="110" height="36" rx="8"/><text x="52" y="308">SpO2 92%</text><text class="sub" x="52" y="322">17/03/2025</text></g>
+          <g class="node" id="n-pneu"><rect x="352" y="178" width="96" height="44" rx="10"/><text x="364" y="198">Pneumonia</text><text class="sub" x="364" y="212">condição</text></g>
+          <g class="node" id="n-xray"><rect x="560" y="86" width="120" height="40" rx="8"/><text x="572" y="103">Raio-x de tórax</text><text class="sub" x="572" y="117">18/03/2025</text></g>
+          <g class="node" id="n-dysp"><rect x="560" y="270" width="110" height="38" rx="8"/><text x="572" y="286">Falta de ar</text><text class="sub" x="572" y="300">sintoma</text></g>
+          <g class="node" id="n-doc"><rect x="620" y="196" width="128" height="38" rx="8"/><text x="632" y="212">Dra. Helena Costa</text><text class="sub" x="632" y="226">médica</text></g>
+          <g class="node" id="n-amox"><rect x="350" y="320" width="104" height="38" rx="8"/><text x="362" y="336">Amoxicilina</text><text class="sub" x="362" y="350">remédio</text></g>
+          <g class="node" id="n-ldl"><rect x="480" y="342" width="80" height="36" rx="8"/><text x="490" y="358">LDL</text><text class="sub" x="490" y="372">4 laudos</text></g>
+          <g class="node" id="n-tsh"><rect x="690" y="342" width="60" height="36" rx="8"/><text x="700" y="358">TSH</text><text class="sub" x="700" y="372">série</text></g>
+        </svg>
+      </div>
+
+      <div class="legend" aria-hidden="true">
+        <span><i class="sw" style="border-color:var(--accent);background:var(--accent-soft)"></i>ponto de partida</span>
+        <span><i class="sw" style="border-color:var(--edge);background:var(--edge-soft)"></i>alcançado pela caminhada</span>
+        <span><i class="sw" style="border-color:var(--faint);background:var(--bg)"></i>fora do caminho (não vai para a IA)</span>
+      </div>
+
+      <div class="panel">
+        <div class="step-text" id="step-text" aria-live="polite"></div>
+        <div id="step-detail"></div>
+      </div>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th></th><th>Busca por semelhança</th><th>GraphRAG da LIA</th></tr></thead>
+        <tbody>
+          <tr><td>Encontra</td><td>Texto parecido</td><td>O relacionado: tempo, série, mesmo laudo</td></tr>
+          <tr><td>Explica</td><td>Não mostra por quê</td><td>Mostra o caminho percorrido</td></tr>
+          <tr><td>Sem resposta</td><td>Devolve algo parecido</td><td>Diz "não encontrei"</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="casamento">
+    <span class="eyebrow">Parte 3 · juntos</span>
+    <h2 id="casamento">Como os dois se casam</h2>
+    <p class="prose">O LLM Wiki escreve o grafo; o GraphRAG lê o grafo. Sem o primeiro, não há o que percorrer. Sem o segundo, tudo vai para a IA.</p>
+
+    <div class="cycle">
+      <div class="lane write">
+        <span class="tag">Escrita · LLM Wiki</span>
+        <span class="when">uma vez por documento</span>
+        <ol>
+          <li>Guarda o original</li>
+          <li>A IA extrai, com trecho e página</li>
+          <li>O código decide número, série e status</li>
+          <li>Regras criam as ligações</li>
+        </ol>
+      </div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="lane read">
+        <span class="tag">Leitura · GraphRAG</span>
+        <span class="when">a cada pergunta</span>
+        <ol>
+          <li>Acha os nós de partida</li>
+          <li>Anda até 2 saltos</li>
+          <li>A IA escreve só com esses fatos</li>
+          <li>O código confere fonte e diagnóstico</li>
+        </ol>
+      </div>
+    </div>
+
+    <p class="insight"><strong>Por que as ligações vêm de regra, e não da IA:</strong> se a IA inventasse "SpO2 antes de Pneumonia", o GraphRAG percorreria esse erro com toda a confiança. Com a regra, a ligação existe porque as datas dizem que existe.</p>
+
+    <div class="chain" aria-label="Cadeia de prova da resposta até o original">
+      <span class="link"><small>GraphRAG</small>frase da resposta</span><span class="sep">→</span>
+      <span class="link"><small>LLM Wiki</small>nota do brain</span><span class="sep">→</span>
+      <span class="link"><small>LLM Wiki</small>trecho literal</span><span class="sep">→</span>
+      <span class="link"><small>Bruto</small>página do PDF</span>
+    </div>
+  </section>
+
+  <section aria-labelledby="wiki-dentro">
+    <span class="eyebrow">Parte 4 · LLM Wiki por dentro</span>
+    <h2 id="wiki-dentro">As três operações do Karpathy, aplicadas à LIA</h2>
+    <p class="prose">O padrão LLM Wiki tem três operações: <strong>ingest</strong> (colocar), <strong>query</strong> (perguntar) e <strong>lint</strong> (manter limpo). Na LIA, cada uma vira uma regra do produto.</p>
+
+    <div class="cards">
+      <div class="card">
+        <span class="tag">Ingest · colocar</span>
+        <h3>Cada envio atualiza o brain</h3>
+        <ul>
+          <li>Guarda o original e confere a impressão digital (SHA-256).</li>
+          <li>Arquivo repetido: "Este exame já está no seu histórico".</li>
+          <li>Extrai com trecho literal e página, padroniza e liga.</li>
+          <li>No fim: "Brain atualizado: N ligações".</li>
+        </ul>
+      </div>
+      <div class="card alt">
+        <span class="tag">Query · perguntar</span>
+        <h3>Responder com o que já foi compilado</h3>
+        <ul>
+          <li>A pergunta não relê os PDFs: anda pelo brain pronto.</li>
+          <li>Só fatos do subgrafo, cada número com fonte.</li>
+          <li>Mostra "Como a LIA chegou nisso".</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="tag">Lint · manter limpo</span>
+        <h3>O brain não pode acumular sujeira</h3>
+        <ul>
+          <li>Limpeza de nós duplicados: Dra. Helena, Amoxicilina, Falta de ar, Vacina, Consulta. De 46 para 40 nós.</li>
+          <li>Teste automático contra nó duplicado e contra rótulo ".pdf".</li>
+          <li>Reprocessamento sem tocar nos originais: nenhuma série mudou de nome, valor ou status.</li>
+          <li>Documento indesejado é arquivado, não apagado.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>O que a IA extrai × o que o código decide</h3>
+    <p class="prose">A IA lê bem, mas erra em detalhe. Dois riscos reais motivaram a regra: <strong>"6.500" leucócitos virar 6,5</strong> e <strong>glicose da urina cair na série da glicemia</strong>. Por isso a IA só copia; quem decide é o servidor.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Campo</th><th>A IA devolve</th><th>O código decide</th></tr></thead>
+        <tbody>
+          <tr><td>Nome do exame</td><td>O nome como está no laudo</td><td>Série padronizada pelo dicionário. O nome sugerido pela IA é ignorado</td></tr>
+          <tr><td>Valor</td><td><code>value_text</code> exatamente como impresso: "6.500", "5,4", "Negativo"</td><td>O número: "6.500" → 6500. "Negativo" não vira número</td></tr>
+          <tr><td>Unidade</td><td>A unidade impressa</td><td>Unidade padrão do exame, com conversão conhecida</td></tr>
+          <tr><td>Faixa e status</td><td>O texto literal da faixa: "até 130 mg/dL"</td><td>Dentro, acima, abaixo ou "Sem referência", pelos limites</td></tr>
+          <tr><td>Material</td><td>Sangue, urina, fezes ou outro</td><td>Fora do sangue, nunca usa o dicionário: vira "Urina: glicose"</td></tr>
+          <tr><td>Fonte</td><td>Trecho literal e página</td><td>Confere que o valor aparece inteiro no trecho: "28" não vale dentro de "128"</td></tr>
+          <tr><td>Ligações</td><td>Nada</td><td>Criadas por regra: mesma série, mesmo laudo, antes de (data) e relacionado</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Padronização: quatro regras fixas</h3>
+    <div class="cards">
+      <div class="card">
+        <span class="tag">Dicionário de nomes</span>
+        <p>15 exames: LDL, HDL, colesterol total, triglicérides, glicemia de jejum, hemoglobina glicada, TSH, T4 livre, hemácias, hemoglobina, leucócitos, plaquetas, creatinina, vitamina D, ferritina.</p>
+        <p class="small">Tenta o nome inteiro, sem o parêntese e o conteúdo do parêntese. Fora do dicionário, vira série própria "não padronizada". O nome original fica sempre guardado.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Unidade original guardada</span>
+        <p>Glicose mmol/L × 18. Colesterol mmol/L × 38,67.</p>
+        <p class="small">Testado: glicose 5,4 mmol/L → 97,2 mg/dL; LDL 4 mmol/L → 154,68 mg/dL. Na tela aparece "convertido de X". Unidade desconhecida fica como impressa.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Valor como texto</span>
+        <p>Vírgula é decimal. Ponto seguido de 3 dígitos é milhar, exceto com zero na frente.</p>
+        <p class="small">"6.500" (faixa 4.000–11.000) → 6500 · "1.020" (faixa 1,005–1,030) → 1,02 · "0.900" → 0,9. Valor ambíguo usa a leitura mais próxima da faixa.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Status pela faixa</span>
+        <p>O servidor calcula a partir de mínimo e máximo, com limites inclusivos.</p>
+        <p class="small">Aceita faixa de um lado só ("até 130"). Sem faixa no laudo: "Sem referência".</p>
+      </div>
+    </div>
+    <p class="insight">O efeito aparece na Linha do tempo. O card do LDL diz: <strong>"Unificado de: Colesterol LDL, LDL colesterol, LDL-C, Colesterol LDL calculado · Lab. Alfa, Lab. Beta"</strong>. Quatro nomes, dois laboratórios, uma série: 128 → 141 → 156 → 171 mg/dL.</p>
+
+    <h3>Duas notas do brain, por dentro</h3>
+    <div class="pair">
+      <div class="note" aria-label="Nota de um resultado do hemograma de 2016">
+        <span class="title">Leucócitos · Lab. São Lucas · 2016</span>
+        <span><span class="k">origem ....</span> foto de hemograma em papel (JPG)</span>
+        <span><span class="k">value_text.</span> <span class="quote">"6.800"</span></span>
+        <span><span class="k">valor .....</span> 6800 /mm³</span>
+        <span><span class="k">material ..</span> sangue</span>
+        <span><span class="k">série .....</span> Leucócitos (dicionário)</span>
+        <span><span class="k">ligações ..</span> mesmo laudo → Hemoglobina 13,4 g/dL, Plaquetas 245.000 /mm³</span>
+      </div>
+      <div class="note" aria-label="Nota do raio-x de tórax">
+        <span class="title">Raio-x de tórax · 18/03/2025</span>
+        <span><span class="k">trecho ....</span> <span class="quote">"Impressão: achados compatíveis com processo pneumônico em base direita."</span></span>
+        <span><span class="k">página ....</span> página do laudo</span>
+        <span><span class="k">nó ........</span> Pneumonia (condição)</span>
+        <span><span class="k">ligações ..</span> antes de ← SpO2 13 a 17/03/2025 (−5 a −1 dias)</span>
+        <span><span class="k">ver fonte .</span> original no armazenamento privado, link de até 10 min</span>
+      </div>
+    </div>
+    <p class="prose" style="color:var(--muted);font-size:0.9rem">A nota não substitui o original: aponta para ele. O médico confere em um clique.</p>
+  </section>
+
+  <section aria-labelledby="graphrag-dentro">
+    <span class="eyebrow">Parte 5 · GraphRAG por dentro</span>
+    <h2 id="graphrag-dentro">Quatro tipos de ligação, dois limites, três guardas</h2>
+    <p class="prose">Na base da demo são <strong>69</strong> ligações. Com os dados de cada documento entram também ligações de profissional e de clínica.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Ligação</th><th>O que liga</th><th>Exemplo na Marina</th><th>Na base</th></tr></thead>
+        <tbody>
+          <tr><td>mesma série</td><td>O mesmo exame ao longo do tempo</td><td>LDL 128 → 141 → 156 → 171 mg/dL (2023 a 2026)</td><td>24</td></tr>
+          <tr><td>mesmo laudo</td><td>Resultados que saíram do mesmo documento</td><td>Hemoglobina, leucócitos e plaquetas da foto de 2016</td><td>27</td></tr>
+          <tr><td>antes de</td><td>Um evento que precede outro, com janela em dias</td><td>SpO2 de 13 a 17/03/2025 → Pneumonia (−5 a −1 dias)</td><td>5</td></tr>
+          <tr><td>relacionado</td><td>Condição, sintoma, remédio, documento</td><td>Pneumonia ↔ raio-x, falta de ar, amoxicilina</td><td>13</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><b>2</b><span>saltos no máximo a partir do ponto de partida</span></div>
+      <div class="stat"><b>40</b><span>fatos no máximo por pergunta (no exemplo da oxigenação, 40 com fonte)</span></div>
+      <div class="stat"><b>0</b><span>fatos sem ponto de partida: a IA nem é chamada</span></div>
+    </div>
+    <p class="insight">Os limites protegem a resposta. Andar demais traz fato que não tem a ver com a pergunta. Mandar tudo para a IA aumenta o risco de ela misturar coisas.</p>
+
+    <h3>Por que sem embeddings</h3>
+    <div class="cards">
+      <div class="card">
+        <span class="tag">Explicável</span>
+        <p>O caminho é feito de notas e ligações que dá para abrir, não de vetores opacos. A tela mostra o mini-grafo e a versão em texto.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Barato</span>
+        <p>Sem banco vetorial nem infraestrutura extra. O ponto de partida vem de busca textual em português com sinônimos.</p>
+      </div>
+      <div class="card">
+        <span class="tag">"Não encontrei"</span>
+        <p>A busca por semelhança sempre devolve algo parecido. Aqui, sem ponto de partida: "nenhum ponto de partida · 0 fatos · IA não chamada".</p>
+      </div>
+    </div>
+
+    <h3>Guardas na resposta</h3>
+    <div class="chain" aria-label="Guardas antes e depois da IA">
+      <span class="link"><small>antes da IA</small>sem nome nem nascimento</span><span class="sep">→</span>
+      <span class="link"><small>antes da IA</small>arquivo é dado, não instrução</span><span class="sep">→</span>
+      <span class="link"><small>IA</small>escreve só com os fatos</span><span class="sep">→</span>
+      <span class="link"><small>depois</small>citação conferida</span><span class="sep">→</span>
+      <span class="link"><small>depois</small>diagnóstico escondido</span>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <h3>Citação conferida pelo servidor</h3>
+        <p>Toda frase factual sobre a paciente precisa citar um fato da lista enviada. Se não citar, é escondida. Exceções: cortesia e "procure um médico".</p>
+      </div>
+      <div class="card">
+        <h3>Frase com diagnóstico escondida</h3>
+        <p>Um filtro no servidor barra diagnóstico e prescrição. A LIA também não afirma causa: mostra que a SpO2 caiu de 97% para 92% antes da pneumonia, sem dizer que causou.</p>
+      </div>
+      <div class="card">
+        <h3>Plano B sem IA</h3>
+        <p>Se a IA falhar, a resposta é montada a partir dos dados com o selo "resposta sem IA".</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider">
+    <span class="eyebrow">Agora, o projeto</span>
+    <p class="lede">A base explica como a LIA pensa. O resto da página explica o que ela entrega, para quem, e até onde vai.</p>
+  </div>
+
+  <section aria-labelledby="desafio">
+    <span class="eyebrow">O desafio Rivio</span>
+    <h2 id="desafio">"Seu médico só vê o que você lembra de trazer"</h2>
+    <div class="prose" style="display:grid;gap:10px">
+      <p>Na saúde privada, o histórico de cada pessoa está espalhado entre laboratórios, hospitais, planos e papel.</p>
+      <p>O médico decide com o que o paciente trouxe. Os sinais do relógio, como arritmia, apneia do sono e hipertensão, ficam de fora.</p>
+      <p>Resultado: exames repetidos, decisões com informação incompleta e desperdício.</p>
+    </div>
+    <div class="cards">
+      <div class="card"><span class="tag">Pilar 1</span><h3>Estruturar o histórico</h3><p>Foto ou PDF vira resultado organizado, na linha do tempo, ao lado da faixa de referência.</p></div>
+      <div class="card"><span class="tag">Pilar 2</span><h3>Acompanhar o presente</h3><p>Relógios e anéis no mesmo histórico, com aviso de quando procurar um médico.</p></div>
+      <div class="card"><span class="tag">Pilar 3</span><h3>Mostrar ao médico</h3><p>Com consentimento, no modelo do Open Finance, numa visão única.</p></div>
+    </div>
+    <p class="insight warn"><strong>As regras do jogo:</strong> a solução não pode diagnosticar nem prescrever. Pode organizar, compartilhar e recomendar a visita ao médico. Os dados são sintéticos.</p>
+  </section>
+
+  <section aria-labelledby="escopo">
+    <span class="eyebrow">A LIA em uma frase</span>
+    <h2 id="escopo">Um brain da sua saúde, não uma pasta de exames</h2>
+    <p class="lede">A LIA junta exames e dados do relógio numa linha do tempo ligada, que você consulta em linguagem natural e compartilha com o médico, com consentimento. Todo número aponta para a fonte.</p>
+    <div class="pair">
+      <div class="card yes">
+        <span class="tag">O que a LIA faz</span>
+        <ul>
+          <li>Lê PDF e foto de exame, com trecho literal e página.</li>
+          <li>Mostra a evolução de cada exame com a faixa de referência.</li>
+          <li>Junta frequência cardíaca, sono, SpO2 e passos do relógio.</li>
+          <li>Avisa quando vale procurar um médico.</li>
+          <li>Responde perguntas mostrando o caminho e a fonte.</li>
+          <li>Compartilha com prazo, escopo e revogação.</li>
+          <li>Exporta o histórico inteiro para levar a outro lugar.</li>
+        </ul>
+      </div>
+      <div class="card no">
+        <span class="tag">O que a LIA não faz</span>
+        <ul>
+          <li>Não diagnostica. Para o médico, o texto é "Achado para avaliação clínica".</li>
+          <li>Não prescreve nem recomenda tratamento.</li>
+          <li>Não mostra número sem fonte.</li>
+          <li>Não afirma causa entre eventos.</li>
+          <li>Não extrai dados do paciente dos laudos.</li>
+          <li>Não compartilha nada sem consentimento.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="para-quem">
+    <span class="eyebrow">Para quem</span>
+    <h2 id="para-quem">Três lados, um histórico</h2>
+    <div class="cards">
+      <div class="card">
+        <span class="tag">Paciente</span>
+        <h3>Marina, 58 anos</h3>
+        <p>Para de carregar papel e de refazer exame. Pergunta em português e vê de onde veio cada resposta. Decide quem vê o quê, e por quanto tempo.</p>
+      </div>
+      <div class="card alt">
+        <span class="tag">Médico</span>
+        <h3>Dr. Rafael Lima</h3>
+        <p>Abre uma ficha que cabe numa tela, com "Desde o seu último acesso" e a origem de cada número. Pergunta sobre a paciente dentro do que foi concedido.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Instituições</span>
+        <h3>Hospitais, planos, laboratórios</h3>
+        <p>Pedem acesso com motivo e escopo. O plano de saúde pede o histórico de exames no lugar do questionário de saúde; o Hospital Central, exames e alertas para uma internação.</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="tour">
+    <span class="eyebrow">Tour do produto</span>
+    <h2 id="tour">Oito telas, uma linha cada</h2>
+    <div class="tour">
+      <div class="card"><h3>Início</h3><p>Envio de PDF ou foto com 5 etapas visíveis; abre com o alerta de ritmo irregular.</p></div>
+      <div class="card"><h3>Linha do tempo</h3><p>Cronologia por ano com o episódio "Pneumonia · mar/2025" em destaque; gráfico por exame com faixa e "Unificado de".</p></div>
+      <div class="card"><h3>Meu brain</h3><p>O grafo interativo: cores por tipo, filtros, "ver fonte" em cada nó.</p></div>
+      <div class="card"><h3>Wearables</h3><p>SpO2 diária, frequência cardíaca, sono e passos; atalho para março de 2025.</p></div>
+      <div class="card"><h3>Alertas</h3><p>Ritmo irregular: 3 episódios noturnos entre 08 e 12/11/2026. "Vale procurar um médico".</p></div>
+      <div class="card"><h3>Perguntar</h3><p>Resposta com fonte e o bloco "Como a LIA chegou nisso", em mini-grafo e texto.</p></div>
+      <div class="card"><h3>Open Health</h3><p>Consentimentos, pedidos de acesso, histórico de acessos e portabilidade.</p></div>
+      <div class="card"><h3>Área do médico</h3><p>Portal separado: lista de pacientes, código ou QR, ficha consolidada.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="envio">
+    <span class="eyebrow">Do PDF ao brain</span>
+    <h2 id="envio">Cinco etapas reais, visíveis na tela</h2>
+    <ol class="flow">
+      <li><strong>Guardando o original</strong><span>Armazenamento privado. SHA-256 barra duplicata.</span></li>
+      <li><strong>Lendo o documento</strong><span>PDF ou JPG. O conteúdo é tratado como dado não confiável.</span></li>
+      <li><strong>Extraindo com trecho literal</strong><span>Cada resultado e cada campo com trecho e página.</span></li>
+      <li><strong>Padronizando nomes e unidades</strong><span>Dicionário, conversão e status no servidor.</span></li>
+      <li><strong>Ligando ao seu brain</strong><span>"+N ligações". O brain se reconstrói sozinho.</span></li>
+    </ol>
+    <p class="prose">No fim, um resumo: quantos resultados entraram, quantos foram descartados e por quê, e o botão "Ver no meu brain".</p>
+
+    <div class="pair">
+      <div class="card yes">
+        <span class="tag">A IA extrai do documento</span>
+        <ul>
+          <li><strong>Profissionais:</strong> nome, registro (CRM, CRF, CRBM, com UF) e papel: quem pediu, quem assinou, responsável técnico.</li>
+          <li><strong>Clínica:</strong> nome, CNPJ se houver, endereço completo com CEP. Coleta numa unidade e análise noutra: guarda as duas.</li>
+          <li><strong>Parâmetros:</strong> material, método, jejum, condições da coleta, equipamento, observações.</li>
+          <li><strong>Datas e horários:</strong> coleta, recebimento, liberação e emissão. A linha do tempo usa a coleta.</li>
+          <li><strong>Contatos:</strong> telefones e e-mails da clínica e dos profissionais, como impressos.</li>
+        </ul>
+      </div>
+      <div class="card no">
+        <span class="tag">A IA nunca extrai</span>
+        <ul>
+          <li>Nome do paciente.</li>
+          <li>CPF.</li>
+          <li>Data de nascimento.</li>
+          <li>Endereço e contatos do paciente.</li>
+        </ul>
+        <p class="small">Só entram os dados de quem atendeu. O que não está no documento fica vazio: a LIA nunca inventa.</p>
+      </div>
+    </div>
+    <p class="insight">O servidor valida CNPJ, CEP, telefone e e-mail; valor inválido fica vazio com aviso. Num PDF novo e fictício do Laboratório Beta, foram <strong>42 campos com fonte</strong>. Isso habilita perguntas como "quais exames eu fiz no Laboratório Beta?" e "quem pediu o raio-x?".</p>
+  </section>
+
+  <section aria-labelledby="open-health">
+    <span class="eyebrow">Consentimento · Open Health</span>
+    <h2 id="open-health">O Open Finance da saúde</h2>
+    <p class="prose">O dado é da pessoa. Todo acesso nasce com prazo (padrão 24 h) e com o menor escopo marcado (padrão: só exames). E pode ser retirado a qualquer momento.</p>
+
+    <h3>Aprovar um pedido em quatro passos</h3>
+    <ol class="flow">
+      <li><strong>Quem pede e para quê</strong><span>Médico ou instituição, com o motivo.</span></li>
+      <li><strong>Escopos, um a um</strong><span>Exames de sangue, wearables, alertas, eventos do brain.</span></li>
+      <li><strong>Prazo</strong><span>2 h, 24 h, 7 dias ou 30 dias.</span></li>
+      <li><strong>Confirmar</strong><span>Gera o "Comprovante de consentimento" em PDF. Recusar também fica registrado.</span></li>
+    </ol>
+
+    <div class="cards">
+      <div class="card">
+        <span class="tag">Código com prazo</span>
+        <p>O médico entra pela lista, por um código de 6 dígitos ou por QR code. Na demo, o código <span class="mono">123-456</span> vale até 15/11/2026 às 23h59.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Revogar</span>
+        <p>A sessão do médico confere o consentimento a cada 15 s e em cada requisição. Revogado: "Acesso encerrado pela paciente", sem nenhum dado na tela.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Histórico de acessos</span>
+        <p>Quem viu, quando e o quê. Aprovar o pedido de um médico gera um código novo, sem ampliar o antigo.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Portabilidade</span>
+        <p>"Levar meu histórico": JSON estruturado inspirado em FHIR, com 572 itens, mais um PDF de resumo. "Trazer histórico" importa no mesmo formato.</p>
+      </div>
+    </div>
+
+    <div class="chain" aria-label="Fluxo do Open Health na demo">
+      <span class="link"><small>1</small>o plano pede</span><span class="sep">→</span>
+      <span class="link"><small>2</small>Marina aprova só exames, 24 h</span><span class="sep">→</span>
+      <span class="link"><small>3</small>o outro lado vê a ficha</span><span class="sep">→</span>
+      <span class="link"><small>4</small>Marina revoga</span><span class="sep">→</span>
+      <span class="link"><small>5</small>a tela do outro lado cai</span>
+    </div>
+  </section>
+
+  <section aria-labelledby="seguranca">
+    <span class="eyebrow">Segurança e privacidade</span>
+    <h2 id="seguranca">Fechado por padrão</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Camada</th><th>Como a LIA protege</th></tr></thead>
+        <tbody>
+          <tr><td>Banco</td><td>Acesso direto fechado nas 15 tabelas, para visitante e para usuário logado. Tudo passa pelas funções do servidor</td></tr>
+          <tr><td>Originais</td><td>Armazenamento privado. "Ver fonte" abre por link assinado de 600 s (no máximo 10 minutos)</td></tr>
+          <tr><td>IA</td><td>Nome e nascimento não vão para a IA. Dados do paciente não são extraídos dos documentos</td></tr>
+          <tr><td>Arquivos</td><td>Conteúdo delimitado como dado não confiável: a IA ignora instruções escondidas no documento</td></tr>
+          <tr><td>Consentimento</td><td>Prazo e menor escopo por padrão; conferência a cada 15 s; revogar derruba a tela na hora</td></tr>
+          <tr><td>Exclusão</td><td>Nada é apagado: documento indesejado é arquivado</td></tr>
+          <tr><td>Demo</td><td>Tudo marcado como fictício e sem validade clínica</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="arquitetura">
+    <span class="eyebrow">Arquitetura</span>
+    <h2 id="arquitetura">Em camadas: a tela pede, o servidor decide</h2>
+    <div class="arch" role="group" aria-label="Arquitetura em camadas: telas, servidor, IA e dados">
+      <div class="row ui">
+        <span class="rowlabel">Telas</span>
+        <div class="boxes">
+          <div class="box"><b>App da paciente</b>Início, Linha do tempo, Meu brain, Wearables, Alertas, Perguntar, Open Health</div>
+          <div class="box"><b>Área do médico</b>Portal separado, ficha limitada aos escopos</div>
+        </div>
+      </div>
+      <div class="down" aria-hidden="true">↓ toda requisição passa pelo servidor ↓</div>
+      <div class="row srv">
+        <span class="rowlabel">Servidor</span>
+        <div class="boxes">
+          <div class="box"><b>Extração</b>dicionário, unidade, status, conferência do trecho</div>
+          <div class="box"><b>Brain</b>ligações por regra, deduplicação</div>
+          <div class="box"><b>GraphRAG</b>busca, 2 saltos, 40 fatos, conferência de citação</div>
+          <div class="box"><b>Consentimento</b>prazo, escopo, revogação, histórico</div>
+        </div>
+      </div>
+      <div class="row ai">
+        <span class="rowlabel">IA</span>
+        <div class="boxes">
+          <div class="box"><b>Lê e redige</b>extrai o que está impresso e escreve a resposta com os fatos recebidos. Não decide número, série nem status</div>
+        </div>
+      </div>
+      <div class="down" aria-hidden="true">↓</div>
+      <div class="row">
+        <span class="rowlabel">Dados</span>
+        <div class="boxes">
+          <div class="box"><b>Bruto</b>originais imutáveis, privados, com SHA-256</div>
+          <div class="box"><b>Brain</b>resultados, nós, ligações, leituras do relógio</div>
+          <div class="box"><b>Consentimentos</b>pedidos, comprovantes, acessos</div>
+        </div>
+      </div>
+    </div>
+    <p class="prose" style="color:var(--muted);font-size:0.9rem">No desenho conceitual do repositório: seis domínios (exames, wearables, linha do tempo, alertas, perguntas e compartilhamento), em camadas em que cada uma só depende das anteriores: a tela não fala direto com o repositório de dados.</p>
+  </section>
+
+  <section aria-labelledby="numeros">
+    <span class="eyebrow">Números da demo</span>
+    <h2 id="numeros">A Marina em números</h2>
+    <div class="stats">
+      <div class="stat"><b>20</b><span>documentos no brain</span></div>
+      <div class="stat"><b>777</b><span>fatos</span></div>
+      <div class="stat"><b>46</b><span>nós na contagem das ligações; 40 depois da limpeza de duplicados</span></div>
+      <div class="stat"><b>174</b><span>ligações, contando as de profissional e clínica (69 entre os nós da base)</span></div>
+      <div class="stat"><b>368</b><span>leituras do relógio (90 dias)</span></div>
+      <div class="stat"><b>19</b><span>resultados de exame da base, todos com trecho e página</span></div>
+      <div class="stat"><b>42</b><span>campos com fonte num laudo novo</span></div>
+      <div class="stat"><b>572</b><span>itens no export de portabilidade</span></div>
+      <div class="stat"><b>4</b><span>pedidos de acesso pendentes</span></div>
+      <div class="stat"><b>137+</b><span>testes automáticos passando</span></div>
+    </div>
+    <p class="prose" style="color:var(--muted);font-size:0.9rem">Base com fonte: 4 PDFs de sangue (2023 a 2026, Lab. Alfa e Lab. Beta), foto de hemograma de 2016 (Lab. São Lucas) e raio-x de 18/03/2025, ou seja, 6 dos 20 documentos do brain. 13 originais no armazenamento, todos abrindo.</p>
+  </section>
+
+  <section aria-labelledby="limites">
+    <span class="eyebrow">Limitações honestas</span>
+    <h2 id="limites">O que ainda não está pronto</h2>
+    <div class="pair">
+      <div class="card no">
+        <span class="tag">Limitações hoje</span>
+        <ul>
+          <li>O alerta automático de SpO2 saiu do fluxo; a oxigenação é mostrada em Wearables.</li>
+          <li>O trecho é conferido contra o valor, mas ainda não contra a página do PDF.</li>
+          <li>"Convertido de X" e a faixa extraída foram cobertos por testes, não vistos ao vivo com laudo real.</li>
+          <li>O plano B sem IA funciona, mas sem corte de tempo de 10 s.</li>
+          <li>O app depende de internet; há vídeo de plano B.</li>
+          <li>A visualização embutida do PDF pode aparecer vazia em alguns navegadores; o link "ver fonte" sempre funciona.</li>
+        </ul>
+      </div>
+      <div class="card yes">
+        <span class="tag">Próximo passo</span>
+        <ul>
+          <li>Segunda extração independente, com voto entre as duas.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="tag">Ficou de fora desta versão</span>
+        <ul>
+          <li>Conferir que o trecho existe naquela página; marcar "trecho não conferido" em foto.</li>
+          <li>Auditoria da extração: "Extraído por IA em &lt;data&gt; e conferido por regra".</li>
+          <li>Importar o export real do Apple Health.</li>
+          <li>Foto pelo celular, com conversão de HEIC e redução para 2000 px.</li>
+          <li>Sono e passos na mesma faixa da linha do tempo.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="roteiro">
+    <span class="eyebrow">Roteiro da demo</span>
+    <h2 id="roteiro">Cinco minutos, sete passos</h2>
+    <ol class="script">
+      <li><time>0:00–0:30</time><div><p><strong>O problema.</strong> "Seu médico só vê o que você lembra de trazer."</p><p>Marina, 58 anos, histórico espalhado em três laboratórios e um relógio.</p></div></li>
+      <li><time>0:30–1:15</time><div><p><strong>Início: enviar um laudo.</strong> As 5 etapas aparecem; no fim, "Brain atualizado: N ligações".</p><p>Reenviar o mesmo arquivo: "Este exame já está no seu histórico".</p></div></li>
+      <li><time>1:15–2:00</time><div><p><strong>Linha do tempo.</strong> LDL de 128 a 171 mg/dL, "Unificado de" dois laboratórios.</p><p>Abrir o episódio da pneumonia na Cronologia e clicar em "ver fonte": o trecho literal no original.</p></div></li>
+      <li><time>2:00–2:45</time><div><p><strong>Perguntar.</strong> "Minha oxigenação caiu antes da pneumonia?" e o caminho no mini-grafo.</p><p>Depois "Como está meu ferro?": "não encontrei", IA não chamada.</p></div></li>
+      <li><time>2:45–3:15</time><div><p><strong>Wearables e alerta.</strong> Ritmo irregular, 3 episódios noturnos: "vale procurar um médico".</p></div></li>
+      <li><time>3:15–4:15</time><div><p><strong>Open Health.</strong> O plano pede; a Marina aprova só exames por 24 h; a ficha abre do outro lado.</p><p>A Marina revoga e a tela do outro lado cai.</p></div></li>
+      <li><time>4:15–5:00</time><div><p><strong>Privacidade e próximos passos.</strong> Fecha com a frase do pitch.</p></div></li>
+    </ol>
+    <p class="insight warn"><strong>Antes de subir ao palco:</strong> ensaiar o Open Health consome os pedidos pendentes. Restaure os 4 pedidos antes da apresentação.</p>
+  </section>
+
+  <section class="pitch" aria-labelledby="pitch">
+    <span class="eyebrow" id="pitch">Para o pitch</span>
+    <blockquote>"A LIA lê cada exame uma vez e o transforma num brain de fatos ligados, com fonte. Quando você pergunta, ela anda pelas ligações e mostra o caminho. Por isso responde 'sua oxigenação caiu de 97% para 92% nos 5 dias antes do raio-x da pneumonia', com a fonte de cada leitura, e diz 'não encontrei' quando não sabe."</blockquote>
+  </section>
+
+  <footer>Dados fictícios (Marina Duarte, Laboratórios Alfa, Beta e São Lucas, Hospital Central, Dra. Helena Costa, Dr. Rafael Lima). Comportamento do app em novembro de 2026.</footer>
+</main>
+
+<script>
+(function () {
+  var state = { q: "spo2", step: 4 };
+  var spo2 = ["n-s1","n-s2","n-s3","n-s4","n-s5"];
+  var spo2Edges = ["e-s1","e-s2","e-s3","e-s4","e-s5"];
+  var all = ["n-s1","n-s2","n-s3","n-s4","n-s5","n-pneu","n-xray","n-dysp","n-doc","n-amox","n-ldl","n-tsh"];
+  var allEdges = ["e-s1","e-s2","e-s3","e-s4","e-s5","e-xray","e-dysp","e-doc","e-amox","e-ldl"];
+  var labels = ["l-before","l-xray","l-dysp","l-amox"];
+
+  var facts = [
+    ["SpO2 97% em 13/03/2025", "relógio · reg. 1"],
+    ["SpO2 92% em 17/03/2025", "relógio · reg. 5"],
+    ["Pneumonia em 18/03/2025", "laudo do raio-x"],
+    ["“Achados compatíveis com processo pneumônico em base direita”", "laudo do raio-x"],
+    ["Falta de ar relatada em 18/03/2025", "pedido médico p.1"],
+    ["Amoxicilina registrada", "receita p.1"]
+  ];
+
+  var texts = {
+    spo2: {
+      1: ["Achar o ponto de partida", "A busca em português, com sinônimos, leva “oxigenação” a SpO2 e acha o nó Pneumonia. Ainda sem IA."],
+      2: ["Andar pelas ligações", "Até 2 saltos: SpO2 está ligada à Pneumonia por “antes de”, e a Pneumonia leva ao raio-x, à falta de ar e à amoxicilina. LDL e TSH ficam fora."],
+      3: ["Juntar a evidência", "Só os fatos do caminho (40, cada um com fonte) vão para a IA. Nome e nascimento da paciente não vão."],
+      4: ["Responder citando", "A IA escreve; o código esconde frase sem fonte ou com diagnóstico. O caminho aparece em “Como a LIA chegou nisso”."]
+    },
+    ferro: {
+      1: ["Achar o ponto de partida", "“Ferro” não bate com nenhum nó nem sinônimo."],
+      2: ["Andar pelas ligações", "Sem ponto de partida, não há por onde andar."],
+      3: ["Juntar a evidência", "Zero fatos. Nada vai para a IA “por via das dúvidas”."],
+      4: ["Responder citando", "A IA nem é chamada: “não encontrei” é melhor do que inventar."]
+    }
+  };
+
+  function cls(id, add, remove) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    remove.forEach(function (c) { el.classList.remove(c); });
+    add.forEach(function (c) { el.classList.add(c); });
+  }
+
+  function render() {
+    var reset = ["start","walk","dim"];
+    all.forEach(function (id) { cls(id, [], reset); });
+    allEdges.forEach(function (id) { cls(id, [], ["walk","dim"]); });
+    labels.forEach(function (id) { cls(id, [], ["walk"]); });
+
+    if (state.q === "spo2") {
+      cls("n-pneu", ["start"], []);
+      spo2.forEach(function (id) { cls(id, ["start"], []); });
+      if (state.step >= 2) {
+        ["n-xray","n-dysp","n-amox","n-doc"].forEach(function (id) { cls(id, ["walk"], []); });
+        spo2Edges.concat(["e-xray","e-dysp","e-amox","e-doc"]).forEach(function (id) { cls(id, ["walk"], []); });
+        labels.forEach(function (id) { cls(id, ["walk"], []); });
+        ["n-ldl","n-tsh"].forEach(function (id) { cls(id, ["dim"], []); });
+        cls("e-ldl", ["dim"], []);
+      } else {
+        ["n-xray","n-dysp","n-amox","n-doc","n-ldl","n-tsh"].forEach(function (id) { cls(id, ["dim"], []); });
+        allEdges.forEach(function (id) { cls(id, ["dim"], []); });
+      }
+    } else {
+      all.forEach(function (id) { cls(id, ["dim"], []); });
+      allEdges.forEach(function (id) { cls(id, ["dim"], []); });
+    }
+
+    var t = texts[state.q][state.step];
+    document.getElementById("step-text").innerHTML = "<h3>" + state.step + " · " + t[0] + "</h3><p>" + t[1] + "</p>";
+
+    var d = document.getElementById("step-detail");
+    if (state.q === "ferro") {
+      d.innerHTML = state.step === 4
+        ? '<div class="answer none"><strong>Não encontrei isso no seu histórico.</strong><div class="path">Achei: nada · Segui: nenhuma ligação · Usei 0 fatos · IA não chamada</div></div>'
+        : '<div class="answer none"><span class="mono">pontos de partida: 0 · fatos: 0</span></div>';
+    } else if (state.step === 1) {
+      d.innerHTML = '<ul class="facts"><li><span>“oxigenação” → SpO2</span><span class="src">sinônimo</span></li><li><span>“pneumonia” → nó Pneumonia</span><span class="src">busca textual</span></li></ul>';
+    } else if (state.step === 2) {
+      d.innerHTML = '<ul class="facts"><li><span>SpO2 (5 leituras) → Pneumonia</span><span class="src">antes de · −5 a −1 dias</span></li><li><span>Pneumonia → raio-x, falta de ar, amoxicilina</span><span class="src">relacionado</span></li><li><span>Raio-x → Dra. Helena Costa</span><span class="src">profissional</span></li><li><span>LDL, TSH</span><span class="src">fora do caminho</span></li></ul>';
+    } else if (state.step === 3) {
+      d.innerHTML = '<ul class="facts">' + facts.map(function (f) { return '<li><span>' + f[0] + '</span><span class="src">' + f[1] + '</span></li>'; }).join("") + '<li><span>… mais 34 fatos do caminho</span><span class="src">40 no total</span></li></ul>';
+    } else {
+      d.innerHTML = '<div class="answer"><span>Sua saturação caiu de <strong>97% em 13/03/2025</strong> <span class="src">relógio</span> para <strong>92% em 17/03/2025</strong> <span class="src">relógio</span>, antes do raio-x de 18/03/2025 <span class="src">laudo do raio-x</span>. A sequência no tempo não demonstra causa.</span><div class="path">Como a LIA chegou nisso · Achei: Pneumonia, SpO2 · Segui: SpO2 antes de Pneumonia (−5 a −1 dias), Pneumonia → raio-x · Usei 40 fatos</div></div>';
+    }
+
+    document.getElementById("q-spo2").setAttribute("aria-pressed", String(state.q === "spo2"));
+    document.getElementById("q-ferro").setAttribute("aria-pressed", String(state.q === "ferro"));
+    document.querySelectorAll(".step").forEach(function (b) { b.setAttribute("aria-pressed", String(Number(b.dataset.step) === state.step)); });
+  }
+
+  document.getElementById("q-spo2").addEventListener("click", function () { state.q = "spo2"; render(); });
+  document.getElementById("q-ferro").addEventListener("click", function () { state.q = "ferro"; render(); });
+  document.querySelectorAll(".step").forEach(function (b) { b.addEventListener("click", function () { state.step = Number(b.dataset.step); render(); }); });
+  render();
+})();
+</script>
