@@ -14,7 +14,7 @@ Entrega no portal: **sábado 14/11 até 16h** · apresentação às 17h (5 min +
 | 3 | Área do médico + área Open Health (exigidas no hackathon) | ✅ feita (13/11) | 33,8 |
 | 4A | Extração confiável, parte 1 (valor como texto, dicionário, material) | ✅ feita (13/11) | 7,5 |
 | 4B | Extração confiável, parte 2 (status, unidade, frase com fonte, reprocessar) | ✅ feita (13/11) | 8,9 |
-| **4C** | **Dados do documento** (profissionais, clínicas com endereço, parâmetros da coleta, datas e horários, contatos) | ⚠️ pausada sem créditos (enviada pelo Marcos em 13/11 às 17:55, no espaço do Carlos) | gastou os 13,8 restantes |
+| **4C** | **Dados do documento** (profissionais, clínicas com endereço, parâmetros da coleta, datas e horários, contatos) | ✅ feita como 6.1 da Onda 6 (13/11): 42 campos com fonte, 117 testes | gastou os 13,8 restantes |
 | M1 | Recriar banco e dados da demo no remix do Marcos | ✅ feita (13/11): 112 testes, RLS nas 15 tabelas, 13 originais íntegros, brain 69 ligações | ~15–25 (estimativa) |
 | **6** | **"Fica legal": conceitos na tela** (4C, tela "Meu brain", caminho do GraphRAG em grafo, envio com etapas, "Unificado de", SpO2 em Wearables) | ✅ feita (13/11): 6.1–6.6 + navegação. Saldo do Marcos não visível: estimativa ~40–50 restantes | ~31–48 (estimativa) |
 | 5 | Acabamento (substituída pela Onda 6; Apple Health, auditoria e foto pelo celular ficam de fora) | ❌ cortada | — |
@@ -360,6 +360,25 @@ No fim, me diga o que apareceu para o LDL e como ficou a SpO2 em Wearables.
 ```
 
 ---
+
+### O que ainda não foi feito (14/11)
+
+**Pendente antes da apresentação**
+- Restaurar a demo do Open Health. O esperado são 4 pedidos pendentes (Plano Saúde Vida, Hospital Central, Laboratório Alfa e Dr. Rafael para wearables); hoje há 3, o Plano Saúde Vida aparece aprovado e o badge de Alertas está em 1 em vez de 2. Custo de ~4 créditos.
+- Subir a ideia e a apresentação no portal até as 16h.
+
+**Ficou de fora (Onda 5 cortada e backlog)**
+- Conferir que o trecho existe naquela página do PDF; marcar "trecho não conferido" em foto.
+- Segunda extração independente, com voto entre as duas.
+- Auditoria da extração: "Extraído por IA em <data> e conferido por regra".
+- Importar o export real do Apple Health; foto pelo celular (HEIC, redução para 2000 px).
+- Sono e passos na mesma faixa da Linha do tempo.
+- Plano B sem IA com corte de tempo de 10 s.
+- Alerta automático de SpO2 < 94% (retirado do workflow em 13/11).
+- Mini-grafo do "Como a LIA chegou nisso" com o visual de rede do Meu brain (hoje é mais lista).
+
+**Repo**
+- O extrator de exames local (`scripts/exames`, `scripts/sintetico`, o agente extrator-de-exames e os docs dele) nunca foi commitado e se perdeu. Dá para reconstruir a partir dos registros das sessões, se for preciso.
 
 ### Material da apresentação (13/11)
 - **Artefato "O Brain da LIA" v4:** base aprofundada (LLM Wiki e GraphRAG por dentro) + projeto (desafio, escopo, para quem, tour, fluxo do PDF, Open Health, segurança, arquitetura, números, limitações, roteiro de 5 min). https://claude.ai/artifact/4q4R3PeUqod2T24tgejbC3
