@@ -87,7 +87,7 @@ Toda tela tem caminho de volta: "← Voltar para a paciente" e "Sair do portal" 
 - 4 pedidos de acesso pendentes: Plano Saúde Vida, Hospital Central, Laboratório Alfa e o Dr. Rafael para wearables.
 - O código 123-456 está ligado ao Dr. Rafael até 15/11/2026 às 23h59.
 - 2 alertas: ritmo irregular (3 episódios entre 08 e 12/11/2026) e queda de SpO2.
-- Se o ensaio consumiu os pedidos, peça ao Lovable para **restaurar só os pedidos e consentimentos da demo**, sem apagar o histórico de acessos.
+- Restaurado e conferido na tela em 14/11. Depois de cada ensaio, clique em **"Restaurar demo"** no fim da página Open Health: uma função de servidor idempotente volta pedidos, consentimentos e alertas da demo ao estado inicial, sem apagar o histórico de acessos e sem gastar créditos.
 
 ## 6. Como trabalhar (fluxo)
 

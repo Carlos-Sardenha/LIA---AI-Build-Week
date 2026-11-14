@@ -364,8 +364,8 @@ No fim, me diga o que apareceu para o LDL e como ficou a SpO2 em Wearables.
 ### O que ainda não foi feito (14/11)
 
 **Pendente antes da apresentação**
-- Restaurar a demo do Open Health. O esperado são 4 pedidos pendentes (Plano Saúde Vida, Hospital Central, Laboratório Alfa e Dr. Rafael para wearables); hoje há 3, o Plano Saúde Vida aparece aprovado e o badge de Alertas está em 1 em vez de 2. Custo de ~4 créditos.
-- Subir a ideia e a apresentação no portal até as 16h.
+- ✅ Demo do Open Health restaurada em 14/11 (4 pedidos pendentes, badge 2, conferido na tela) e botão "Restaurar demo" no fim do Open Health, para voltar ao estado inicial depois de cada ensaio (o Lovable disse que tinha criado o botão na 1ª rodada e não tinha; precisou de uma 2ª).
+- Subir a ideia e a apresentação no portal até as 16h (o Carlos faz).
 
 **Ficou de fora (Onda 5 cortada e backlog)**
 - Conferir que o trecho existe naquela página do PDF; marcar "trecho não conferido" em foto.
