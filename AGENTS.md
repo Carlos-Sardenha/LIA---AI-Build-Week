@@ -21,6 +21,7 @@ Mapa do repositório para agentes. **Não é manual:** aqui só tem o essencial 
 | Nota de qualidade por domínio | `docs/QUALITY_SCORE.md` |
 | Docs de bibliotecas e do desafio | `docs/references/` |
 | Os agentes deste repo e o fluxo entre eles | `docs/agents.md` |
+| **Continuar o app da hackathon** (estado atual, rotas, regras, erros já vistos, fluxo de trabalho) | `bastidores/CONTEXTO.md` (leia primeiro) |
 
 ## Como rodar
 

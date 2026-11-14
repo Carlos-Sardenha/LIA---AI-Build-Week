@@ -75,7 +75,7 @@ Retomar o projeto LIA (hackathon Gama House · Desafio Rivio) a partir deste rep
 - Antes de commit ou push no repo, me pergunte.
 
 # Tarefa
-1. Clone ou puxe o repo e leia README, AGENTS.md, ARCHITECTURE.md e `bastidores/planejamento-lovable.md`.
+1. Clone ou puxe o repo e leia `bastidores/CONTEXTO.md` primeiro; depois AGENTS.md, README e `bastidores/planejamento-lovable.md`.
 2. Abra o projeto no Lovable e o preview, e confirme que o app carrega na Início da Marina.
 3. Me devolva um resumo curto do estado e das pendências, em ordem de prioridade para a apresentação de hoje.
 4. Espere minhas atualizações. Para cada uma: escreva o prompt do Lovable, me mostre a estimativa de créditos, envie, acompanhe, confira na tela e registre no .md.
