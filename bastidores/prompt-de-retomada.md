@@ -26,7 +26,7 @@ Retomar o projeto LIA (hackathon Gama House · Desafio Rivio) a partir da pasta 
   - `2-conceitos.html`: o artefato "O Brain da LIA", com LLM Wiki, GraphRAG e o projeto;
   - `3-contexto-ia.html`: ondas (feito e falta), mapa do app, regras, fluxo, erros já vistos e este prompt.
 - **`apresentacao/`:**
-  - `LIA - Apresentação.pptx`: 11 slides; o vídeo está embutido no slide 10;
+  - `LIA - Apresentação.pptx`: 12 slides; o vídeo está embutido no slide 10;
   - `LIA - Tour da plataforma.mp4`: 2min14s, com a voz neural Thalita;
   - `o-brain-da-lia.html`.
 - **`contexto-ia/` (leia primeiro):**
